@@ -12,8 +12,9 @@ Personal media hosting for images, audio and video.
 
 ## Setup on Vercel
 
-1. Deploy this project
-2. Go to Vercel Dashboard → your project → Storage → Create Database → Blob
-3. Connect the Blob store (it adds `BLOB_READ_WRITE_TOKEN` automatically)
-4. (Optional) Add Environment Variable: `MEDIA_PASSWORD` = your secret password
-5. Redeploy if needed
+1. Import this repo on Vercel
+2. Go to Storage → Create → Blob and connect it
+3. (Optional) Add `MEDIA_PASSWORD` env var
+4. Redeploy
+
+Then open your Vercel URL and start uploading.
