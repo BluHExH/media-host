@@ -16,7 +16,6 @@ export async function GET(request: NextRequest) {
       limit: 200,
     });
 
-    // Sort newest first
     const sorted = blobs.sort(
       (a, b) =>
         new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
@@ -28,7 +27,7 @@ export async function GET(request: NextRequest) {
         pathname: b.pathname,
         size: b.size,
         uploadedAt: b.uploadedAt,
-        contentType: b.contentType || guessType(b.pathname),
+        contentType: (b as any).contentType || guessType(b.pathname),
       })),
     });
   } catch (error) {
