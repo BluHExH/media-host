@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
         pathname: b.pathname,
         size: b.size,
         uploadedAt: b.uploadedAt,
-        contentType: (b as any).contentType || guessType(b.pathname),
+        contentType: guessType(b.pathname),
       })),
     });
   } catch (error) {
