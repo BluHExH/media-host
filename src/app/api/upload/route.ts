@@ -4,17 +4,18 @@ import { NextRequest, NextResponse } from "next/server";
 export const runtime = "edge";
 
 function guessMime(name: string, type: string): string {
-  if (type && (type.startsWith("image/") || type.startsWith("audio/") || type.startsWith("video/"))) {
-    return type;
+  if (type && (type.startsWith("image/") || type.startsWith("audio/") || type.startsWith("video/") || type === "text/html" || type === "application/xhtml+xml")) {
+    return type === "application/xhtml+xml" ? "text/html" : type;
   }
   const ext = name.split(".").pop()?.toLowerCase() || "";
   const map: Record<string, string> = {
     jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif",
-    webp: "image/webp", svg: "image/svg+xml", avif: "image/avif", ico: "image/x-icon",
+    webp: "image/webp", svg: "image/svg+xml", avif: "image/avif",
     mp3: "audio/mpeg", wav: "audio/wav", ogg: "audio/ogg", m4a: "audio/mp4",
-    aac: "audio/aac", flac: "audio/flac", opus: "audio/opus",
+    aac: "audio/aac", flac: "audio/flac",
     mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime",
     avi: "video/x-msvideo", mkv: "video/x-matroska", m4v: "video/mp4",
+    html: "text/html", htm: "text/html",
   };
   return map[ext] || type || "application/octet-stream";
 }
@@ -30,13 +31,13 @@ export async function POST(request: NextRequest) {
     const file = formData.get("file") as File | null;
     if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
     const mime = guessMime(file.name, file.type);
-    const allowed = mime.startsWith("image/") || mime.startsWith("audio/") || mime.startsWith("video/");
+    const allowed = mime.startsWith("image/") || mime.startsWith("audio/") || mime.startsWith("video/") || mime === "text/html";
     if (!allowed) {
-      return NextResponse.json({ error: "Only image, audio and video files are allowed" }, { status: 400 });
+      return NextResponse.json({ error: "Only image, audio, video and HTML files are allowed" }, { status: 400 });
     }
-    const maxSize = mime.startsWith("image/") ? 50 * 1024 * 1024 : 100 * 1024 * 1024;
+    const maxSize = mime.startsWith("video/") || mime.startsWith("audio/") ? 100 * 1024 * 1024 : 50 * 1024 * 1024;
     if (file.size > maxSize) {
-      return NextResponse.json({ error: `File too large (max ${mime.startsWith("image/") ? "50" : "100"}MB)` }, { status: 400 });
+      return NextResponse.json({ error: "File too large" }, { status: 400 });
     }
     const blob = await put(file.name, file, { access: "public", addRandomSuffix: true, contentType: mime });
     return NextResponse.json({
