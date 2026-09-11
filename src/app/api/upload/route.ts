@@ -4,20 +4,22 @@ import { NextRequest, NextResponse } from "next/server";
 export const runtime = "edge";
 
 function guessMime(name: string, type: string): string {
-  if (type && (type.startsWith("image/") || type.startsWith("audio/") || type.startsWith("video/") || type === "text/html" || type === "application/xhtml+xml")) {
+  if (type && (type.startsWith("image/") || type.startsWith("audio/") || type.startsWith("video/") || type === "text/html" || type === "application/xhtml+xml"))
     return type === "application/xhtml+xml" ? "text/html" : type;
-  }
   const ext = name.split(".").pop()?.toLowerCase() || "";
   const map: Record<string, string> = {
-    jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif",
-    webp: "image/webp", svg: "image/svg+xml", avif: "image/avif",
-    mp3: "audio/mpeg", wav: "audio/wav", ogg: "audio/ogg", m4a: "audio/mp4",
-    aac: "audio/aac", flac: "audio/flac",
-    mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime",
-    avi: "video/x-msvideo", mkv: "video/x-matroska", m4v: "video/mp4",
+    jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", avif: "image/avif",
+    mp3: "audio/mpeg", wav: "audio/wav", ogg: "audio/ogg", m4a: "audio/mp4", aac: "audio/aac", flac: "audio/flac",
+    mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime", avi: "video/x-msvideo", mkv: "video/x-matroska", m4v: "video/mp4",
     html: "text/html", htm: "text/html",
   };
   return map[ext] || type || "application/octet-stream";
+}
+
+function safeAlbum(raw: string | null): string {
+  if (!raw) return "general";
+  const s = raw.trim().toLowerCase().replace(/[^a-z0-9-_]/g, "-").replace(/-+/g, "-").slice(0, 40);
+  return s || "general";
 }
 
 export async function POST(request: NextRequest) {
@@ -30,19 +32,18 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    const album = safeAlbum(formData.get("album") as string | null);
     const mime = guessMime(file.name, file.type);
     const allowed = mime.startsWith("image/") || mime.startsWith("audio/") || mime.startsWith("video/") || mime === "text/html";
     if (!allowed) {
       return NextResponse.json({ error: "Only image, audio, video and HTML files are allowed" }, { status: 400 });
     }
     const maxSize = mime.startsWith("video/") || mime.startsWith("audio/") ? 100 * 1024 * 1024 : 50 * 1024 * 1024;
-    if (file.size > maxSize) {
-      return NextResponse.json({ error: "File too large" }, { status: 400 });
-    }
-    const blob = await put(file.name, file, { access: "public", addRandomSuffix: true, contentType: mime });
+    if (file.size > maxSize) return NextResponse.json({ error: "File too large" }, { status: 400 });
+    const blob = await put(`${album}/${file.name}`, file, { access: "public", addRandomSuffix: true, contentType: mime });
     return NextResponse.json({
       url: blob.url, pathname: blob.pathname, contentType: mime,
-      size: file.size, uploadedAt: new Date().toISOString(),
+      size: file.size, uploadedAt: new Date().toISOString(), album,
     });
   } catch (error) {
     console.error("Upload error:", error);
