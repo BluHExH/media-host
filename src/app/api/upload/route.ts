@@ -5,20 +5,14 @@ export const runtime = "edge";
 function guessMime(name: string, type: string): string {
   if (type && (type.startsWith("image/") || type.startsWith("audio/") || type.startsWith("video/") || type === "text/html")) return type;
   const ext = name.split(".").pop()?.toLowerCase() || "";
-  const map: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp", mp3: "audio/mpeg", wav: "audio/wav", mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime", m4v: "video/mp4", html: "text/html", htm: "text/html" };
+  const map: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp", mp3: "audio/mpeg", mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime", html: "text/html", htm: "text/html" };
   return map[ext] || type || "application/octet-stream";
-}
-function safeAlbum(raw: string | null): string {
-  if (!raw) return "general";
-  return raw.trim().toLowerCase().replace(/[^a-z0-9-_]/g, "-").slice(0, 40) || "general";
 }
 function computeExpiry(daysRaw: string | null): Date | null {
   if (!daysRaw || daysRaw === "never" || daysRaw === "0") return null;
   const days = parseInt(daysRaw, 10);
   if (!days || days < 1) return null;
-  const d = new Date();
-  d.setDate(d.getDate() + Math.min(days, 3650));
-  return d;
+  const d = new Date(); d.setDate(d.getDate() + Math.min(days, 3650)); return d;
 }
 export async function POST(request: NextRequest) {
   try {
@@ -30,7 +24,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
-    const album = safeAlbum(formData.get("album") as string | null);
+    const album = String(formData.get("album") || "general").toLowerCase().replace(/[^a-z0-9-_]/g, "-").slice(0, 40) || "general";
     const expiresAt = computeExpiry(formData.get("expiry") as string | null);
     const isPublic = formData.get("public") === "1" || formData.get("public") === "true";
     const mime = guessMime(file.name, file.type);
@@ -44,6 +38,6 @@ export async function POST(request: NextRequest) {
         await sql`INSERT INTO media_meta (user_id, url, pathname, content_type, size, album, expires_at, is_public) VALUES (${parsed?.userId ?? null}, ${blob.url}, ${blob.pathname}, ${mime}, ${file.size}, ${album}, ${expiresAt ? expiresAt.toISOString() : null}, ${isPublic}) ON CONFLICT (url) DO NOTHING`;
       } catch {}
     }
-    return NextResponse.json({ url: blob.url, pathname: blob.pathname, contentType: mime, size: file.size, uploadedAt: new Date().toISOString(), album, expiresAt: expiresAt ? expiresAt.toISOString() : null, isPublic, previewUrl: blob.url });
+    return NextResponse.json({ url: blob.url, pathname: blob.pathname, contentType: mime, size: file.size, uploadedAt: new Date().toISOString(), album, expiresAt: expiresAt ? expiresAt.toISOString() : null, isPublic });
   } catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : "fail" }, { status: 500 }); }
 }

@@ -23,7 +23,6 @@ export async function ensureSchema() {
   await sql`ALTER TABLE media_meta ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ`;
   await sql`ALTER TABLE media_meta ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT false`;
   await sql`CREATE INDEX IF NOT EXISTS idx_media_user ON media_meta(user_id)`;
-  await sql`CREATE INDEX IF NOT EXISTS idx_media_expires ON media_meta(expires_at)`;
   await sql`CREATE TABLE IF NOT EXISTS login_logs (id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, username TEXT, ip TEXT, user_agent TEXT, action TEXT NOT NULL, success BOOLEAN DEFAULT true, created_at TIMESTAMPTZ DEFAULT NOW())`;
   return { ok: true };
 }

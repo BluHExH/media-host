@@ -4,7 +4,7 @@ import { getSql, parseToken, ensureSchema, purgeExpired } from "@/lib/db";
 export const runtime = "edge";
 function guessType(pathname: string): string {
   const ext = pathname.split(".").pop()?.toLowerCase() || "";
-  const map: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp", mp3: "audio/mpeg", wav: "audio/wav", mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime", html: "text/html", htm: "text/html" };
+  const map: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp", mp3: "audio/mpeg", mp4: "video/mp4", webm: "video/webm", html: "text/html", htm: "text/html" };
   return map[ext] || "application/octet-stream";
 }
 function albumOf(pathname: string): string {
@@ -30,8 +30,8 @@ export async function GET(request: NextRequest) {
           return NextResponse.json({ files, albums: Array.from(new Set(files.map((f: any) => f.album))).sort() });
         }
         if (parsed) {
-          const rows = await sql`SELECT url, pathname, content_type, size, album, expires_at, created_at, is_public FROM media_meta WHERE user_id = ${parsed.userId} AND (expires_at IS NULL OR expires_at > NOW()) ORDER BY created_at DESC LIMIT 300`;
-          const files = rows.map((r: any) => ({ url: r.url, pathname: r.pathname || "", size: Number(r.size) || 0, uploadedAt: r.created_at, contentType: r.content_type || guessType(r.pathname || ""), album: r.album || "general", expiresAt: r.expires_at, isPublic: !!r.is_public }));
+          const rows = await sql`SELECT url, pathname, content_type, size, album, expires_at, created_at FROM media_meta WHERE user_id = ${parsed.userId} AND (expires_at IS NULL OR expires_at > NOW()) ORDER BY created_at DESC LIMIT 300`;
+          const files = rows.map((r: any) => ({ url: r.url, pathname: r.pathname || "", size: Number(r.size) || 0, uploadedAt: r.created_at, contentType: r.content_type || guessType(r.pathname || ""), album: r.album || "general", expiresAt: r.expires_at }));
           return NextResponse.json({ files, albums: Array.from(new Set(files.map((f: any) => f.album))).sort() });
         }
         if (isAdmin) {
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
       } catch (e) { console.error(e); }
     }
     const { blobs } = await list({ limit: 100 });
-    const files = blobs.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()).slice(0, 100).map(b => ({ url: b.url, pathname: b.pathname, size: b.size, uploadedAt: b.uploadedAt, contentType: guessType(b.pathname), album: albumOf(b.pathname), expiresAt: null }));
-    return NextResponse.json({ files, albums: Array.from(new Set(files.map(f => f.album))).sort() });
+    const files = blobs.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()).slice(0, 100).map((b) => ({ url: b.url, pathname: b.pathname, size: b.size, uploadedAt: b.uploadedAt, contentType: guessType(b.pathname), album: albumOf(b.pathname), expiresAt: null }));
+    return NextResponse.json({ files, albums: Array.from(new Set(files.map((f) => f.album))).sort() });
   } catch { return NextResponse.json({ error: "Failed", files: [] }, { status: 500 }); }
 }

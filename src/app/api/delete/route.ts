@@ -23,12 +23,6 @@ export async function DELETE(request: NextRequest) {
         }
         for (const url of urls) await sql`DELETE FROM media_meta WHERE url = ${url} AND user_id = ${parsed.userId}`;
       } catch {}
-    } else if (isAdmin && (process.env.DATABASE_URL || process.env.POSTGRES_URL)) {
-      try {
-        await ensureSchema();
-        const sql = getSql();
-        for (const url of urls) await sql`DELETE FROM media_meta WHERE url = ${url}`;
-      } catch {}
     }
     await del(urls);
     return NextResponse.json({ success: true });
