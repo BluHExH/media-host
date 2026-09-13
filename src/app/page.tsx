@@ -1,50 +1,105 @@
+"use client";
+import { useState, useRef, useCallback } from "react";
 import Link from "next/link";
-
-export default function LandingPage() {
+type Uploaded = { url: string; name: string; contentType: string; size: number };
+const TK = "media_host_token";
+const PK = "media_host_pass";
+export default function HomePage() {
+  const [dragOver, setDragOver] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [items, setItems] = useState<Uploaded[]>([]);
+  const [error, setError] = useState("");
+  const [copied, setCopied] = useState<string | null>(null);
+  const ref = useRef<HTMLInputElement>(null);
+  const headers = useCallback(() => {
+    const h: Record<string, string> = {};
+    if (typeof window === "undefined") return h;
+    const p = localStorage.getItem(PK) || "";
+    const t = localStorage.getItem(TK) || "";
+    if (p) h["x-password"] = p;
+    if (t) h["x-auth-token"] = t;
+    return h;
+  }, []);
+  const upload = async (list: FileList | null) => {
+    if (!list?.length) return;
+    setError(""); setUploading(true);
+    const arr = Array.from(list);
+    const next: Uploaded[] = [];
+    for (let i = 0; i < arr.length; i++) {
+      setProgress({ done: i, total: arr.length });
+      const file = arr[i];
+      const fd = new FormData();
+      fd.append("file", file); fd.append("album", "general"); fd.append("expiry", "never"); fd.append("public", "1");
+      const res = await fetch("/api/upload", { method: "POST", headers: headers(), body: fd });
+      if (res.status === 401) { setError("Sign in required. Create a free account first."); setUploading(false); return; }
+      if (!res.ok) { const d = await res.json().catch(() => ({})); setError(d.error || "Failed"); continue; }
+      const d = await res.json();
+      next.push({ url: d.url, name: file.name, contentType: d.contentType || file.type, size: d.size || file.size });
+    }
+    setItems((p) => [...next, ...p]); setUploading(false); setProgress({ done: 0, total: 0 });
+    if (ref.current) ref.current.value = "";
+  };
+  const copy = (url: string) => { navigator.clipboard.writeText(url); setCopied(url); setTimeout(() => setCopied(null), 2000); };
+  const fmt = (b: number) => b < 1024 ? b + " B" : b < 1e6 ? (b / 1024).toFixed(1) + " KB" : (b / 1e6).toFixed(1) + " MB";
+  const isImg = (t: string) => t.startsWith("image/");
+  const isVid = (t: string) => t.startsWith("video/");
+  const isHtml = (t: string) => t.includes("html");
   return (
-    <div className="min-h-screen bg-zinc-950">
-      <header className="border-b border-zinc-800/80">
-        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:px-6">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md border border-zinc-700 bg-zinc-900 text-[11px] font-semibold tracking-tight">MH</div>
-            <span className="text-sm font-medium tracking-tight">Media Host</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link href="/gallery" className="rounded-md px-3 py-1.5 text-sm text-zinc-400 transition hover:text-zinc-100">Gallery</Link>
-            <Link href="/login" className="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-200 transition hover:bg-zinc-800">Sign in</Link>
-            <Link href="/login?tab=register" className="rounded-md bg-zinc-100 px-3 py-1.5 text-sm font-medium text-zinc-900 transition hover:bg-white">Get started</Link>
-          </div>
+    <div className="min-h-screen bg-slate-50">
+      <header className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
+          <div className="flex items-center gap-2.5"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-xs font-bold text-white">MH</div><span className="text-sm font-semibold">Media Host</span></div>
+          <nav className="flex items-center gap-2">
+            <Link href="/gallery" className="text-sm text-slate-600">Gallery</Link>
+            <Link href="/library" className="text-sm text-slate-600">Library</Link>
+            <Link href="/login" className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm">Sign in</Link>
+            <Link href="/login?tab=register" className="rounded-lg bg-blue-600 px-3.5 py-1.5 text-sm font-medium text-white">Create free account</Link>
+          </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-4 pb-24 pt-20 sm:px-6 sm:pt-28">
-        <p className="mb-4 text-xs font-medium uppercase tracking-[0.2em] text-zinc-500">Personal media CDN</p>
-        <h1 className="max-w-2xl text-4xl font-semibold tracking-tight text-zinc-50 sm:text-5xl sm:leading-[1.1]">
-          Host images, video, and audio.
-          <span className="block text-zinc-500">Get permanent links.</span>
-        </h1>
-        <p className="mt-6 max-w-xl text-base leading-relaxed text-zinc-400">
-          Upload once, share anywhere. Private library with albums, public gallery, account security, and direct CDN URLs for every file.
-        </p>
-        <div className="mt-10 flex flex-wrap gap-3">
-          <Link href="/login?tab=register" className="inline-flex h-10 items-center rounded-md bg-zinc-100 px-5 text-sm font-medium text-zinc-900 transition hover:bg-white">Create account</Link>
-          <Link href="/library" className="inline-flex h-10 items-center rounded-md border border-zinc-700 bg-transparent px-5 text-sm text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100">Open library</Link>
+      <main className="mx-auto max-w-3xl px-4 pb-24 pt-12">
+        <div className="text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">Free media hosting</p>
+          <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Host images &amp; video online</h1>
+          <p className="mx-auto mt-3 max-w-lg text-slate-500">Upload files and get a public link instantly. Fast, secure, no credit card.</p>
+          <ul className="mt-5 flex flex-wrap justify-center gap-x-5 text-sm text-slate-600">
+            <li>✓ Ad free</li><li>✓ Direct CDN links</li><li>✓ Image · Video · Audio · HTML</li>
+          </ul>
         </div>
-        <div className="mt-20 grid gap-4 sm:grid-cols-3">
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-5">
-            <h2 className="text-sm font-medium text-zinc-100">Any media type</h2>
-            <p className="mt-2 text-sm leading-relaxed text-zinc-500">Images, MP4, audio, and HTML files with correct MIME handling.</p>
+        <div onDragOver={(e) => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={(e) => { e.preventDefault(); setDragOver(false); upload(e.dataTransfer.files); }}
+          className={`relative mt-10 rounded-2xl border-2 border-dashed bg-white ${dragOver ? "border-blue-500 bg-blue-50" : "border-slate-200"}`}>
+          <input ref={ref} type="file" accept="image/*,video/*,audio/*,.html,.htm" multiple onChange={(e) => upload(e.target.files)} className="absolute inset-0 z-10 cursor-pointer opacity-0" disabled={uploading} />
+          <div className="pointer-events-none px-6 py-14 text-center">
+            <p className="text-base font-semibold">{uploading ? `Uploading ${progress.done + 1}/${progress.total}…` : "Drop files here to upload"}</p>
+            <p className="mt-1.5 text-sm text-slate-500">or click to browse · max 100 MB</p>
           </div>
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-5">
-            <h2 className="text-sm font-medium text-zinc-100">Permanent URLs</h2>
-            <p className="mt-2 text-sm leading-relaxed text-zinc-500">Copy a public link instantly. Works in projects, embeds, and docs.</p>
+        </div>
+        {error && <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error} <Link href="/login?tab=register" className="underline">Create account</Link></div>}
+        {items.length > 0 && (
+          <div className="mt-8 space-y-3">
+            <h2 className="text-sm font-semibold">Your links</h2>
+            {items.map((item) => (
+              <div key={item.url} className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3 sm:flex-row sm:items-center">
+                <div className="h-16 w-full shrink-0 overflow-hidden rounded-lg bg-slate-100 sm:w-20">
+                  {isImg(item.contentType) ? <img src={item.url} alt="" className="h-full w-full object-cover" /> : isVid(item.contentType) ? <video src={item.url} className="h-full w-full object-cover" muted /> : <div className="flex h-full items-center justify-center text-xs text-slate-400">{isHtml(item.contentType) ? "HTML" : "FILE"}</div>}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{item.name}</p>
+                  <p className="truncate font-mono text-xs text-slate-400">{item.url}</p>
+                  <p className="text-[11px] text-slate-400">{fmt(item.size)}</p>
+                </div>
+                <button type="button" onClick={() => copy(item.url)} className="rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white">{copied === item.url ? "Copied!" : "Copy URL"}</button>
+              </div>
+            ))}
           </div>
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-5">
-            <h2 className="text-sm font-medium text-zinc-100">Secure accounts</h2>
-            <p className="mt-2 text-sm leading-relaxed text-zinc-500">Hashed passwords, session tokens, and login IP audit logs.</p>
-          </div>
+        )}
+        <div className="mt-16 grid gap-6 sm:grid-cols-2">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">1</div><h3 className="mt-4 text-sm font-semibold">Upload instantly</h3><p className="mt-2 text-sm text-slate-500">Drop images, video, audio or HTML.</p></div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-6"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">2</div><h3 className="mt-4 text-sm font-semibold">Copy the public URL</h3><p className="mt-2 text-sm text-slate-500">Share or embed anywhere.</p></div>
         </div>
       </main>
-      <footer className="border-t border-zinc-900 py-8 text-center text-xs text-zinc-600">Media Host</footer>
+      <footer className="border-t border-slate-200 py-8 text-center text-xs text-slate-400">Media Host · Free media hosting</footer>
     </div>
   );
 }
