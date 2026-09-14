@@ -7,7 +7,7 @@ export const runtime = "edge";
 export async function DELETE(request: NextRequest) {
   try {
     const token = request.headers.get("x-auth-token") || "";
-    const parsed = token ? parseToken(token) : null;
+    const parsed = token ? await parseToken(token) : null;
     if (!parsed) {
       return NextResponse.json({ error: "Login required" }, { status: 401 });
     }

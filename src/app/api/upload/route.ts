@@ -27,7 +27,7 @@ function computeExpiry(daysRaw: string | null): Date | null {
 export async function POST(request: NextRequest) {
   try {
     const token = request.headers.get("x-auth-token") || "";
-    const parsed = token ? parseToken(token) : null;
+    const parsed = token ? await parseToken(token) : null;
     if (!parsed) {
       return NextResponse.json(
         { error: "Login required. Please sign in or register first." },
