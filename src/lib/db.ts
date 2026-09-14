@@ -123,7 +123,7 @@ async function sha256Hex(text: string): Promise<string> {
 }
 
 export async function makeToken(userId: number, username: string): Promise<string> {
-  const exp = Date.now() + 2 * 60 * 60 * 1000;
+  const exp = Date.now() + 7 * 24 * 60 * 60 * 1000;
   const payload = `${userId}:${username}:${exp}`;
   return `${btoa(payload)}.${await hmacSign(payload)}`;
 }
