@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 const TK = "media_host_token";
+const RK = "media_host_refresh";
 
 function LoginForm() {
   const router = useRouter();
@@ -51,6 +52,7 @@ function LoginForm() {
       return;
     }
     localStorage.setItem(TK, data.token);
+    if (data.refreshToken) localStorage.setItem(RK, data.refreshToken);
     localStorage.removeItem("media_host_pass");
     const next = search.get("next");
     router.push(next && next.startsWith("/") ? next : "/library");
