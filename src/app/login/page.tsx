@@ -52,7 +52,8 @@ function LoginForm() {
     }
     localStorage.setItem(TK, data.token);
     localStorage.removeItem("media_host_pass");
-    router.push("/library");
+    const next = search.get("next");
+    router.push(next && next.startsWith("/") ? next : "/library");
   };
 
   return (
@@ -72,8 +73,8 @@ function LoginForm() {
         </h1>
         <p className="mt-2 text-sm text-slate-500">
           {tab === "login"
-            ? "Access your private media library. Upload requires an account."
-            : "Register to upload and manage your files. Password is stored securely."}
+            ? "Access your private media library."
+            : "Register to upload. Your files stay private to your account."}
         </p>
         <div className="mt-8 flex rounded-lg border border-slate-200 bg-white p-1">
           <button type="button" onClick={() => setTab("login")} className={`flex-1 rounded-md py-2 text-sm font-medium ${tab === "login" ? "bg-slate-900 text-white" : "text-slate-500"}`}>Sign in</button>
@@ -93,7 +94,6 @@ function LoginForm() {
             {loading ? "Please wait…" : tab === "register" ? "Create account" : "Sign in"}
           </button>
         </form>
-        <p className="mt-6 text-center text-xs text-slate-400">Your password is hashed and stored in the database. Plain text is never saved.</p>
       </div>
     </div>
   );

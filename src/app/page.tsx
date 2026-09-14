@@ -26,7 +26,7 @@ export default function HomePage() {
     if (!list?.length) return;
     const t = typeof window !== "undefined" ? localStorage.getItem(TK) || "" : "";
     if (!t) {
-      setError("Sign in required to upload. Create a free account first.");
+      window.location.href = "/login?tab=register&next=/";
       return;
     }
     setError("");
@@ -43,8 +43,7 @@ export default function HomePage() {
       fd.append("public", "1");
       const res = await fetch("/api/upload", { method: "POST", headers: headers(), body: fd });
       if (res.status === 401) {
-        setError("Sign in required to upload. Create a free account first.");
-        setUploading(false);
+        window.location.href = "/login?tab=register&next=/";
         return;
       }
       if (!res.ok) {
@@ -99,11 +98,6 @@ export default function HomePage() {
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">Free media hosting</p>
           <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Host images &amp; video online</h1>
           <p className="mx-auto mt-3 max-w-lg text-slate-500">Create a free account to upload. Get a public link instantly.</p>
-          <ul className="mt-5 flex flex-wrap justify-center gap-x-5 text-sm text-slate-600">
-            <li>✓ Login required</li>
-            <li>✓ Direct CDN links</li>
-            <li>✓ Image · Video · Audio · HTML</li>
-          </ul>
         </div>
         <div
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -114,16 +108,11 @@ export default function HomePage() {
           <input ref={ref} type="file" accept="image/*,video/*,audio/*,.html,.htm" multiple onChange={(e) => upload(e.target.files)} className="absolute inset-0 z-10 cursor-pointer opacity-0" disabled={uploading} />
           <div className="pointer-events-none px-6 py-14 text-center">
             <p className="text-base font-semibold">{uploading ? `Uploading ${progress.done + 1}/${progress.total}…` : "Drop files here to upload"}</p>
-            <p className="mt-1.5 text-sm text-slate-500">Sign in required · max 100 MB</p>
+            <p className="mt-1.5 text-sm text-slate-500">Account required · max 100 MB</p>
           </div>
         </div>
         {error && (
-          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}{" "}
-            <Link href="/login?tab=register" className="font-medium underline">Create account</Link>
-            {" · "}
-            <Link href="/login" className="font-medium underline">Sign in</Link>
-          </div>
+          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
         )}
         {items.length > 0 && (
           <div className="mt-8 space-y-3">
@@ -151,20 +140,8 @@ export default function HomePage() {
             ))}
           </div>
         )}
-        <div className="mt-16 grid gap-6 sm:grid-cols-2">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">1</div>
-            <h3 className="mt-4 text-sm font-semibold">Register &amp; upload</h3>
-            <p className="mt-2 text-sm text-slate-500">Create an account, then drop images, video, audio or HTML.</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-6">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">2</div>
-            <h3 className="mt-4 text-sm font-semibold">Copy the public URL</h3>
-            <p className="mt-2 text-sm text-slate-500">Share or embed anywhere. Only you see your private library.</p>
-          </div>
-        </div>
       </main>
-      <footer className="border-t border-slate-200 py-8 text-center text-xs text-slate-400">Media Host · Free media hosting</footer>
+      <footer className="border-t border-slate-200 py-8 text-center text-xs text-slate-400">Media Host</footer>
     </div>
   );
 }
