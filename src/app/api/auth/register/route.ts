@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
         email: user.email,
         createdAt: user.created_at,
       },
-      token: makeToken(user.id, user.username),
+      token: await makeToken(user.id, user.username),
     });
   } catch (e) {
     return NextResponse.json(
