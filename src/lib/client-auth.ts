@@ -6,6 +6,11 @@ export function getAccessToken(): string {
   return localStorage.getItem(TK) || "";
 }
 
+export function getRefreshToken(): string {
+  if (typeof window === "undefined") return "";
+  return localStorage.getItem(RK) || "";
+}
+
 export function clearAuth() {
   if (typeof window === "undefined") return;
   localStorage.removeItem(TK);
@@ -13,31 +18,55 @@ export function clearAuth() {
   localStorage.removeItem("media_host_pass");
 }
 
-/** Fetch with auto refresh on 401 */
+export function hasSession(): boolean {
+  if (typeof window === "undefined") return false;
+  return !!(localStorage.getItem(TK) || localStorage.getItem(RK));
+}
+
+async function tryRefresh(): Promise<string | null> {
+  const rt = getRefreshToken();
+  if (!rt) return null;
+  try {
+    const r = await fetch("/api/auth/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken: rt }),
+    });
+    if (!r.ok) {
+      clearAuth();
+      return null;
+    }
+    const d = await r.json();
+    if (d.token) localStorage.setItem(TK, d.token);
+    if (d.refreshToken) localStorage.setItem(RK, d.refreshToken);
+    return d.token || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function ensureSession(): Promise<boolean> {
+  if (getAccessToken()) return true;
+  const t = await tryRefresh();
+  return !!t;
+}
+
 export async function authFetch(input: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers || {});
   let token = getAccessToken();
+
+  if (!token) {
+    token = (await tryRefresh()) || "";
+  }
   if (token) headers.set("x-auth-token", token);
 
   let res = await fetch(input, { ...init, headers });
 
   if (res.status === 401 && typeof window !== "undefined") {
-    const rt = localStorage.getItem(RK) || "";
-    if (rt) {
-      const r = await fetch("/api/auth/refresh", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refreshToken: rt }),
-      });
-      if (r.ok) {
-        const d = await r.json();
-        localStorage.setItem(TK, d.token);
-        if (d.refreshToken) localStorage.setItem(RK, d.refreshToken);
-        headers.set("x-auth-token", d.token);
-        res = await fetch(input, { ...init, headers });
-      } else {
-        clearAuth();
-      }
+    const newToken = await tryRefresh();
+    if (newToken) {
+      headers.set("x-auth-token", newToken);
+      res = await fetch(input, { ...init, headers });
     }
   }
   return res;

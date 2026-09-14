@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { authFetch, clearAuth, TK } from "@/lib/client-auth";
+import { authFetch, clearAuth, hasSession, ensureSession, TK } from "@/lib/client-auth";
 
 type Activity = { day: string; uploads: number; logins: number };
 
@@ -28,26 +28,39 @@ export default function ProfilePage() {
       router.replace("/login?next=/profile");
       return;
     }
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setError(data.error || "Failed");
+      setError(data.error || "Failed to load profile");
       setLoading(false);
       return;
     }
     setUser(data.user);
-    setDisplayName(data.user.displayName || data.user.username || "");
-    setUsername(data.user.username || "");
+    setDisplayName(data.user?.displayName || data.user?.username || "");
+    setUsername(data.user?.username || "");
     setStats(data.stats || { files: 0, totalBytes: 0 });
     setActivity(data.activity || []);
     setLoading(false);
   };
 
   useEffect(() => {
-    if (!localStorage.getItem(TK)) {
-      router.replace("/login?next=/profile");
-      return;
-    }
-    load();
+    let cancelled = false;
+    (async () => {
+      await new Promise((r) => setTimeout(r, 0));
+      if (!hasSession()) {
+        router.replace("/login?next=/profile");
+        return;
+      }
+      const okSession = await ensureSession();
+      if (cancelled) return;
+      if (!okSession && !localStorage.getItem(TK)) {
+        router.replace("/login?next=/profile");
+        return;
+      }
+      await load();
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   const saveProfile = async (e: React.FormEvent) => {
@@ -60,7 +73,7 @@ export default function ProfilePage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ displayName, username }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     setSaving(false);
     if (!res.ok) {
       setError(data.error || "Save failed");
@@ -68,7 +81,7 @@ export default function ProfilePage() {
     }
     if (data.token) localStorage.setItem(TK, data.token);
     setUser(data.user);
-    setOk("Profile saved — kept in database");
+    setOk("Profile saved");
   };
 
   const onAvatar = async (list: FileList | null) => {
@@ -79,7 +92,7 @@ export default function ProfilePage() {
     const fd = new FormData();
     fd.append("file", list[0]);
     const res = await authFetch("/api/profile/avatar", { method: "POST", body: fd });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     setAvatarBusy(false);
     if (!res.ok) {
       setError(data.error || "Avatar failed");
@@ -113,7 +126,7 @@ export default function ProfilePage() {
   const maxY = Math.max(1, ...activity.map((a) => a.uploads + a.logins));
 
   if (loading) {
-    return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-500">Loading…</div>;
+    return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-500">Loading profile…</div>;
   }
 
   return (
@@ -133,7 +146,6 @@ export default function ProfilePage() {
       <main className="mx-auto max-w-3xl space-y-6 px-4 py-10">
         {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
         {ok && <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{ok}</p>}
-
         {user && (
           <>
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -154,10 +166,8 @@ export default function ProfilePage() {
                 <div>
                   <h1 className="text-xl font-bold text-slate-900">{user.displayName || user.username}</h1>
                   <p className="text-sm text-slate-500">@{user.username}</p>
-                  <p className="mt-1 text-xs text-slate-400">Click photo to change · max 5 MB</p>
                 </div>
               </div>
-
               <form onSubmit={saveProfile} className="mt-6 space-y-4 border-t border-slate-100 pt-6">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-600">Display name</label>
@@ -166,13 +176,11 @@ export default function ProfilePage() {
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-600">Username</label>
                   <input value={username} onChange={(e) => setUsername(e.target.value)} className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500" />
-                  <p className="mt-1 text-[11px] text-slate-400">Letters, numbers, underscore only</p>
                 </div>
                 <button type="submit" disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
                   {saving ? "Saving…" : "Save profile"}
                 </button>
               </form>
-
               <dl className="mt-6 grid gap-3 text-sm sm:grid-cols-2">
                 <div className="rounded-xl bg-slate-50 px-4 py-3">
                   <dt className="text-xs text-slate-400">Account created</dt>
@@ -192,19 +200,14 @@ export default function ProfilePage() {
                 </div>
               </dl>
             </div>
-
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-sm font-semibold text-slate-900">Activity (last 14 days)</h2>
-              <p className="mt-1 text-xs text-slate-400">Blue = uploads · Gray = logins</p>
-              {activity.every((a) => a.uploads === 0 && a.logins === 0) && (
-                <p className="mt-4 text-sm text-slate-500">No activity yet — upload a file to see the graph.</p>
-              )}
               <div className="mt-6 flex h-40 items-end gap-1.5">
                 {activity.map((a) => {
                   const upH = Math.round((a.uploads / maxY) * 100);
                   const logH = Math.round((a.logins / maxY) * 100);
                   return (
-                    <div key={a.day} className="flex flex-1 flex-col items-center gap-1" title={`${a.day}: ${a.uploads} up, ${a.logins} logins`}>
+                    <div key={a.day} className="flex flex-1 flex-col items-center gap-1">
                       <div className="flex h-32 w-full flex-col justify-end gap-0.5">
                         <div className="w-full rounded-t bg-blue-500/90" style={{ height: `${upH}%`, minHeight: a.uploads ? 4 : 0 }} />
                         <div className="w-full rounded-b bg-slate-300" style={{ height: `${logH}%`, minHeight: a.logins ? 3 : 0 }} />
@@ -215,11 +218,9 @@ export default function ProfilePage() {
                 })}
               </div>
             </div>
-
             <div className="rounded-2xl border border-red-200 bg-red-50/50 p-6">
               <h2 className="text-sm font-semibold text-red-800">Danger zone</h2>
-              <p className="mt-1 text-xs text-red-600/80">Delete account, all files, and login history permanently.</p>
-              <button type="button" onClick={deleteAccount} disabled={deleting} className="mt-4 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50">
+              <button type="button" onClick={deleteAccount} disabled={deleting} className="mt-4 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700">
                 {deleting ? "Deleting…" : "Delete my account"}
               </button>
             </div>
