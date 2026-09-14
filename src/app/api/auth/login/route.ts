@@ -7,17 +7,22 @@ import {
   getClientIp,
   getUserAgent,
   logAuthEvent,
+  checkRateLimit,
+  makeRefreshToken,
 } from "@/lib/db";
 
 export const runtime = "edge";
 
 export async function POST(request: NextRequest) {
   try {
+    const ipEarly = getClientIp(request);
+    const rl = await checkRateLimit(`login:${ipEarly}`, 20, 300);
+    if (!rl.ok) return NextResponse.json({ error: "Too many login attempts. Try later." }, { status: 429 });
     await ensureSchema();
     const body = await request.json();
     const username = String(body.username || "").trim().toLowerCase();
     const password = String(body.password || "");
-    const ip = getClientIp(request);
+    const ip = ipEarly;
     const ua = getUserAgent(request);
 
     if (!username || !password) {
@@ -76,6 +81,7 @@ export async function POST(request: NextRequest) {
         createdAt: row.created_at,
       },
       token: await makeToken(row.id, row.username),
+      refreshToken: await makeRefreshToken(row.id),
     });
   } catch (e) {
     return NextResponse.json(

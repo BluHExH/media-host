@@ -7,12 +7,17 @@ import {
   getClientIp,
   getUserAgent,
   logAuthEvent,
+  checkRateLimit,
+  makeRefreshToken,
 } from "@/lib/db";
 
 export const runtime = "edge";
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = getClientIp(request);
+    const rl = await checkRateLimit(`register:${ip}`, 5, 3600);
+    if (!rl.ok) return NextResponse.json({ error: "Too many registrations. Try later." }, { status: 429 });
     await ensureSchema();
     const body = await request.json();
     const username = String(body.username || "")
@@ -23,7 +28,6 @@ export async function POST(request: NextRequest) {
     const password = String(body.password || "");
     const displayName = String(body.displayName || username).trim().slice(0, 64) || username;
     const email = body.email ? String(body.email).trim().toLowerCase().slice(0, 120) : null;
-    const ip = getClientIp(request);
     const ua = getUserAgent(request);
 
     if (username.length < 3) {
@@ -74,6 +78,7 @@ export async function POST(request: NextRequest) {
         createdAt: user.created_at,
       },
       token: await makeToken(user.id, user.username),
+      refreshToken: await makeRefreshToken(user.id),
     });
   } catch (e) {
     return NextResponse.json(
