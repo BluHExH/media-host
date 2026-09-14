@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { authFetch, clearAuth, TK } from "@/lib/client-auth";
+import { authFetch, clearAuth, TK, hasSession, ensureSession } from "@/lib/client-auth";
 
 type F = { url: string; pathname: string; size: number; uploadedAt: string; contentType: string; album: string; expiresAt?: string | null };
 
@@ -23,25 +23,27 @@ export default function LibraryPage() {
   const ref = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const t = localStorage.getItem(TK) || "";
-    if (!t) {
+    if (!hasSession()) {
       router.replace("/login");
       return;
     }
-    authFetch("/api/auth/me")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
+    (async () => {
+      await ensureSession();
+      try {
+        const r = await authFetch("/api/auth/me");
+        const d = r.ok ? await r.json() : null;
         if (d?.user) setUser(d.user);
         else {
           clearAuth();
           router.replace("/login");
         }
-      })
-      .catch(() => {
+      } catch {
         clearAuth();
         router.replace("/login");
-      })
-      .finally(() => setReady(true));
+      } finally {
+        setReady(true);
+      }
+    })();
   }, [router]);
 
   const load = useCallback(async () => {
