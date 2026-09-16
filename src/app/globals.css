@@ -1,9 +1,108 @@
 @import "tailwindcss";
-html { color-scheme: light; }
+
+:root {
+  --mh-bg: #f4f6fb;
+  --mh-surface: #ffffff;
+  --mh-ink: #0b1220;
+  --mh-muted: #64748b;
+  --mh-line: #e8edf5;
+  --mh-brand: #2563eb;
+  --mh-brand-dark: #1d4ed8;
+  --mh-glow: rgba(37, 99, 235, 0.12);
+  --mh-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.06);
+  --mh-shadow-lg: 0 4px 6px rgba(15, 23, 42, 0.04), 0 20px 40px rgba(15, 23, 42, 0.08);
+}
+
+html {
+  color-scheme: light;
+  scroll-behavior: smooth;
+}
+
 body {
-  background: #f8fafc;
-  color: #0f172a;
+  background: var(--mh-bg);
+  color: var(--mh-ink);
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
-a { color: inherit; text-decoration: none; }
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: rgba(37, 99, 235, 0.18);
+}
+
+.mh-mesh {
+  background-color: var(--mh-bg);
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(37, 99, 235, 0.14), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(99, 102, 241, 0.08), transparent),
+    linear-gradient(to bottom, transparent, var(--mh-bg));
+}
+
+.mh-card {
+  background: var(--mh-surface);
+  border: 1px solid var(--mh-line);
+  border-radius: 1.25rem;
+  box-shadow: var(--mh-shadow);
+}
+
+.mh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  border-radius: 0.75rem;
+  transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mh-btn:active {
+  transform: scale(0.98);
+}
+
+.mh-btn-primary {
+  background: var(--mh-brand);
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.3), 0 4px 12px rgba(37, 99, 235, 0.25);
+}
+
+.mh-btn-primary:hover {
+  background: var(--mh-brand-dark);
+}
+
+.mh-input {
+  width: 100%;
+  height: 2.75rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--mh-line);
+  background: #fff;
+  padding: 0 0.875rem;
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.mh-input:focus {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px var(--mh-glow);
+}
+
+@keyframes mh-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mh-fade-up {
+  animation: mh-fade-up 0.45s ease both;
+}
