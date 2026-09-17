@@ -1,10 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Media Host">
   <defs>
     <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#2563eb"/>
-      <stop offset="100%" stop-color="#4f46e5"/>
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="45%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="112" fill="url(#g)"/>
-  <text x="256" y="300" text-anchor="middle" font-family="system-ui,Segoe UI,sans-serif" font-size="180" font-weight="700" fill="#ffffff">MH</text>
+  <rect width="512" height="512" rx="116" fill="url(#g)"/>
+  <rect x="118" y="150" width="180" height="130" rx="20" fill="#fff" opacity="0.2" transform="rotate(-8 208 215)"/>
+  <rect x="210" y="190" width="170" height="120" rx="18" fill="#fff" opacity="0.15" transform="rotate(10 295 250)"/>
+  <text x="256" y="305" text-anchor="middle" font-family="system-ui,Segoe UI,sans-serif" font-size="168" font-weight="700" fill="#ffffff">MH</text>
 </svg>
