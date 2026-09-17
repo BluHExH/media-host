@@ -1,16 +1,19 @@
 import { put } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, parseToken, ensureSchema } from "@/lib/db";
+import { getSql, parseToken, ensureSchema, checkRateLimit, getClientIp } from "@/lib/db";
 
 export const runtime = "edge";
 
 function guessMime(name: string, type: string): string {
-  if (type && (type.startsWith("image/") || type.startsWith("audio/") || type.startsWith("video/") || type === "text/html")) return type;
+  if (type && type.startsWith("image/")) return type;
+  if (type && type.startsWith("audio/")) return type;
+  if (type && type.startsWith("video/")) return type;
+  if (type && (type === "text/html" || type.startsWith("text/html"))) return "text/html; charset=utf-8";
   const ext = name.split(".").pop()?.toLowerCase() || "";
   const map: Record<string, string> = {
     jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp",
     mp3: "audio/mpeg", wav: "audio/wav", mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime",
-    html: "text/html", htm: "text/html",
+    html: "text/html; charset=utf-8", htm: "text/html; charset=utf-8",
   };
   return map[ext] || type || "application/octet-stream";
 }
@@ -26,6 +29,9 @@ function computeExpiry(daysRaw: string | null): Date | null {
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = getClientIp(request);
+    const rl = await checkRateLimit(`upload:${ip}`, 40, 60);
+    if (!rl.ok) return NextResponse.json({ error: "Upload rate limit. Slow down." }, { status: 429 });
     const token = request.headers.get("x-auth-token") || "";
     const parsed = token ? await parseToken(token) : null;
     if (!parsed) {
@@ -66,7 +72,7 @@ export async function POST(request: NextRequest) {
         mime.startsWith("image/") ||
         mime.startsWith("audio/") ||
         mime.startsWith("video/") ||
-        mime === "text/html"
+        mime.startsWith("text/html")
       )
     ) {
       return NextResponse.json({ error: "Invalid type" }, { status: 400 });
@@ -78,7 +84,7 @@ export async function POST(request: NextRequest) {
     const blob = await put(`${album}/${file.name}`, file, {
       access: "public",
       addRandomSuffix: true,
-      contentType: mime,
+      contentType: mime.startsWith("text/html") ? "text/html; charset=utf-8" : mime,
     });
 
     const sql = getSql();
@@ -88,7 +94,7 @@ export async function POST(request: NextRequest) {
         ${parsed.userId},
         ${blob.url},
         ${blob.pathname},
-        ${mime},
+        ${mime.startsWith("text/html") ? "text/html; charset=utf-8" : mime},
         ${file.size},
         ${album},
         ${expiresAt ? expiresAt.toISOString() : null},
@@ -97,10 +103,15 @@ export async function POST(request: NextRequest) {
       ON CONFLICT (url) DO NOTHING
     `;
 
+    const previewUrl = mime.startsWith("text/html")
+      ? `/api/render?u=${encodeURIComponent(blob.url)}`
+      : blob.url;
+
     return NextResponse.json({
       url: blob.url,
+      previewUrl,
       pathname: blob.pathname,
-      contentType: mime,
+      contentType: mime.startsWith("text/html") ? "text/html; charset=utf-8" : mime,
       size: file.size,
       uploadedAt: new Date().toISOString(),
       album,
