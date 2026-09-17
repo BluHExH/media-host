@@ -47,6 +47,8 @@ export async function GET(request: NextRequest) {
         "Content-Disposition": `inline; filename="${name.replace(/"/g, "")}"`,
         "Cache-Control": "public, max-age=3600",
         "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "SAMEORIGIN",
+        "Content-Security-Policy": "frame-ancestors 'self'",
       },
     });
   } catch (e) {
