@@ -16,18 +16,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Media Host — Fast free image & video hosting",
-  description: "Upload images, video, audio and HTML. Private library, folders, expiry links, and instant CDN URLs.",
+  title: "Media Host — Private image & video hosting",
+  description: "Sign in to upload. Folders, expiry links, CDN URLs. No guest uploads.",
 };
-
-const themeScript = `(function(){try{var t=localStorage.getItem('mh_theme');var d=window.matchMedia('(prefers-color-scheme: dark)').matches;if(t==='dark'||(!t&&d))document.documentElement.classList.add('dark');else document.documentElement.classList.remove('dark');}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full`} suppressHydrationWarning>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-      </head>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full`}>
       <body className="min-h-full antialiased">{children}</body>
     </html>
   );
