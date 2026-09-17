@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef, useCallback } from "react";
 import Link from "next/link";
+import ThemeToggle from "@/components/ThemeToggle";
 
 type Uploaded = { url: string; name: string; contentType: string; size: number };
 const TK = "media_host_token";
@@ -52,12 +53,7 @@ export default function HomePage() {
         continue;
       }
       const d = await res.json();
-      next.push({
-        url: d.url,
-        name: file.name,
-        contentType: d.contentType || file.type,
-        size: d.size || file.size,
-      });
+      next.push({ url: d.url, name: file.name, contentType: d.contentType || file.type, size: d.size || file.size });
     }
     setItems((p) => [...next, ...p]);
     setUploading(false);
@@ -70,8 +66,7 @@ export default function HomePage() {
     setCopied(url);
     setTimeout(() => setCopied(null), 2000);
   };
-  const fmt = (b: number) =>
-    b < 1024 ? b + " B" : b < 1e6 ? (b / 1024).toFixed(1) + " KB" : (b / 1e6).toFixed(1) + " MB";
+  const fmt = (b: number) => b < 1024 ? b + " B" : b < 1e6 ? (b / 1024).toFixed(1) + " KB" : (b / 1e6).toFixed(1) + " MB";
   const isImg = (t: string) => t.startsWith("image/");
   const isVid = (t: string) => t.startsWith("video/");
 
@@ -89,12 +84,12 @@ export default function HomePage() {
           <nav className="flex items-center gap-1 sm:gap-2">
             <Link href="/gallery" className="hidden rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 sm:inline">Gallery</Link>
             <Link href="/library" className="rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100">Library</Link>
+            <ThemeToggle />
             <Link href="/login" className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50">Sign in</Link>
             <Link href="/login?tab=register" className="mh-btn mh-btn-primary px-4 py-2">Get started</Link>
           </nav>
         </div>
       </header>
-
       <main className="mx-auto max-w-3xl px-4 pb-24 pt-14 sm:px-6 sm:pt-20">
         <div className="mh-fade-up text-center">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-blue-700">Free · Secure · Fast CDN</span>
@@ -102,72 +97,43 @@ export default function HomePage() {
             Host images &amp; video
             <span className="block bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">in seconds</span>
           </h1>
-          <p className="mx-auto mt-4 max-w-lg text-base text-slate-500 sm:text-lg">Private library, folders, expiry links, and instant public URLs. Built for developers and creators.</p>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-slate-600">
-            <span className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span> Login protected</span>
-            <span className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span> Folders &amp; expiry</span>
-            <span className="flex items-center gap-1.5"><span className="text-emerald-500">✓</span> Image · Video · Audio · HTML</span>
-          </div>
+          <p className="mx-auto mt-4 max-w-lg text-base text-slate-500 sm:text-lg">Private library, folders, expiry links, and instant public URLs.</p>
         </div>
-
-        <div
-          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={(e) => { e.preventDefault(); setDragOver(false); upload(e.dataTransfer.files); }}
-          className={`mh-fade-up relative mt-12 overflow-hidden rounded-3xl border-2 border-dashed transition-all ${dragOver ? "border-blue-500 bg-blue-50/80 shadow-lg shadow-blue-500/10" : "border-slate-200 bg-white shadow-[var(--mh-shadow-lg)]"}`}
-          style={{ animationDelay: "80ms" }}
-        >
+        <div onDragOver={(e) => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={(e) => { e.preventDefault(); setDragOver(false); upload(e.dataTransfer.files); }}
+          className={`mh-fade-up relative mt-12 overflow-hidden rounded-3xl border-2 border-dashed transition-all ${dragOver ? "border-blue-500 bg-blue-50/80" : "border-slate-200 bg-white shadow-[var(--mh-shadow-lg)]"}`}>
           <input ref={ref} type="file" accept="image/*,video/*,audio/*,.html,.htm" multiple onChange={(e) => upload(e.target.files)} className="absolute inset-0 z-10 cursor-pointer opacity-0" disabled={uploading} />
           <div className="pointer-events-none px-6 py-16 text-center">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-2xl text-blue-600">↑</div>
             <p className="text-lg font-semibold text-slate-900">{uploading ? `Uploading ${progress.done + 1}/${progress.total}…` : "Drop files here"}</p>
-            <p className="mt-2 text-sm text-slate-500">or click to browse · max 100 MB · account required</p>
+            <p className="mt-2 text-sm text-slate-500">or click · max 100 MB · account required</p>
           </div>
         </div>
-
         {error && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-
         {items.length > 0 && (
           <div className="mt-10 space-y-3">
-            <h2 className="text-sm font-semibold text-slate-800">Your links</h2>
             {items.map((item) => (
               <div key={item.url} className="mh-card flex flex-col gap-3 p-3 sm:flex-row sm:items-center">
                 <div className="h-16 w-full shrink-0 overflow-hidden rounded-xl bg-slate-100 sm:w-20">
-                  {isImg(item.contentType) ? (
-                    <img src={item.url} alt="" className="h-full w-full object-cover" />
-                  ) : isVid(item.contentType) ? (
-                    <video src={item.url} className="h-full w-full object-cover" muted />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-xs text-slate-400">FILE</div>
-                  )}
+                  {isImg(item.contentType) ? <img src={item.url} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" /> : isVid(item.contentType) ? <video src={item.url} className="h-full w-full object-cover" muted preload="metadata" /> : <div className="flex h-full items-center justify-center text-xs text-slate-400">FILE</div>}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{item.name}</p>
                   <p className="truncate font-mono text-xs text-slate-400">{item.url}</p>
-                  <p className="text-[11px] text-slate-400">{fmt(item.size)}</p>
                 </div>
                 <button type="button" onClick={() => copy(item.url)} className="mh-btn mh-btn-primary px-4 py-2 text-xs">{copied === item.url ? "Copied!" : "Copy URL"}</button>
               </div>
             ))}
           </div>
         )}
-
-        <div className="mt-20 grid gap-5 sm:grid-cols-3">
-          {[
-            { n: "1", t: "Create account", d: "Free register in seconds. Your files stay private." },
-            { n: "2", t: "Upload & organize", d: "Folders, expiry dates, and public gallery option." },
-            { n: "3", t: "Share the link", d: "CDN URL ready for sites, Discord, or embeds." },
-          ].map((c) => (
-            <div key={c.n} className="mh-card p-6">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">{c.n}</div>
-              <h3 className="mt-4 text-sm font-semibold text-slate-900">{c.t}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-slate-500">{c.d}</p>
+        <div className="mh-stagger mt-20 grid gap-5 sm:grid-cols-3">
+          {["Create account", "Upload & organize", "Share the link"].map((t, i) => (
+            <div key={t} className="mh-card p-6">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">{i + 1}</div>
+              <h3 className="mt-4 text-sm font-semibold text-slate-900">{t}</h3>
             </div>
           ))}
         </div>
       </main>
-
-      <footer className="border-t border-slate-200/80 py-10 text-center text-xs text-slate-400">Media Host · Free media hosting with private libraries</footer>
+      <footer className="border-t border-slate-200/80 py-10 text-center text-xs text-slate-400">Media Host</footer>
     </div>
   );
 }
