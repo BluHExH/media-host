@@ -2,6 +2,7 @@
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const TK = "media_host_token";
 const RK = "media_host_refresh";
@@ -64,7 +65,10 @@ function LoginForm() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 text-xs font-bold text-white">MH</div>
             <span className="text-sm font-semibold">Media Host</span>
           </Link>
-          <Link href="/" className="text-sm text-slate-500 hover:text-slate-800">← Home</Link>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Link href="/" className="text-sm text-slate-500 hover:text-slate-800">← Home</Link>
+          </div>
         </div>
       </header>
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 py-12">
