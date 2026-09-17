@@ -113,6 +113,8 @@ a { color: inherit; text-decoration: none; }
   perspective: 900px;
   perspective-origin: 50% 40%;
   transform-style: preserve-3d;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
 }
 .mh-stage-inner {
   position: relative;
@@ -167,6 +169,36 @@ a { color: inherit; text-decoration: none; }
   transform: rotateX(60deg);
   pointer-events: none;
 }
+
+@media (max-width: 640px) {
+  .mh-stage { perspective: none; }
+  .mh-stage-inner {
+    height: auto;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    gap: 0.65rem;
+    padding: 0.5rem 0.25rem;
+    transform: none;
+  }
+  .mh-ring { display: none; }
+  .mh-card3d {
+    position: relative;
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
+    margin: 0 !important;
+    width: 30% !important;
+    max-width: 110px;
+    height: 84px !important;
+    animation: none !important;
+    transform: none !important;
+    flex-shrink: 0;
+  }
+  .mh-hero-title { font-size: 1.75rem !important; line-height: 1.2 !important; }
+  .mh-hero-sub { font-size: 0.95rem !important; }
+}
+
 .mh-lock-badge {
   display: inline-flex;
   align-items: center;
