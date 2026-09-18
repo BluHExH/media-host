@@ -32,23 +32,17 @@ export default function HomePage() {
 
   useEffect(() => {
     const els = document.querySelectorAll(".pro-reveal");
-    const io = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((e) => {
-          if (e.isIntersecting) e.target.classList.add("is-visible");
-        });
-      },
-      { threshold: 0.12 }
-    );
-    els.forEach((el) => io.observe(el));
-    return () => io.disconnect();
+    const show = () => els.forEach((el) => el.classList.add("is-visible"));
+    show();
+    const t = setTimeout(show, 50);
+    return () => clearTimeout(t);
   }, []);
 
   const headers = useCallback(() => {
     const h: Record<string, string> = {};
     if (typeof window === "undefined") return h;
-    const t = localStorage.getItem(TK) || "";
-    if (t) h["x-auth-token"] = t;
+    const tok = localStorage.getItem(TK) || "";
+    if (tok) h["x-auth-token"] = tok;
     return h;
   }, []);
 
@@ -58,8 +52,7 @@ export default function HomePage() {
 
   const upload = async (list: FileList | null) => {
     if (!list?.length) return;
-    const t = typeof window !== "undefined" ? localStorage.getItem(TK) || "" : "";
-    if (!t) {
+    if (!localStorage.getItem(TK)) {
       requireLogin();
       return;
     }
@@ -68,9 +61,9 @@ export default function HomePage() {
     const arr = Array.from(list);
     const next: Uploaded[] = [];
     let done = 0;
-    const concurrency = Math.min(6, arr.length);
     let index = 0;
     let aborted = false;
+    const concurrency = Math.min(6, arr.length);
     const worker = async () => {
       while (index < arr.length && !aborted) {
         const i = index++;
@@ -130,7 +123,7 @@ export default function HomePage() {
   const isVid = (t: string) => t.startsWith("video/");
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-[#0a0a0a]">
+    <div className="relative min-h-screen overflow-x-hidden bg-[#0a0a0a] text-white">
       <div className="pro-orbs" aria-hidden>
         <div className="pro-orb pro-orb-1" />
         <div className="pro-orb pro-orb-2" />
@@ -139,45 +132,40 @@ export default function HomePage() {
       <header className="pro-nav">
         <div className="pro-container flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-[10px] font-semibold tracking-wider text-white">MH</div>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-[10px] font-semibold text-white">MH</div>
             <span className="text-sm font-medium text-white">Media Host</span>
           </Link>
-
           <nav className="hidden items-center gap-1 md:flex">
-            <Link href="/tools/remove-bg" className="rounded-lg px-3 py-2 text-sm text-neutral-400 transition hover:text-white">Remove BG</Link>
-            <Link href="/gallery" className="rounded-lg px-3 py-2 text-sm text-neutral-400 transition hover:text-white">Gallery</Link>
-            <Link href="/library" className="rounded-lg px-3 py-2 text-sm text-neutral-400 transition hover:text-white">Library</Link>
+            <Link href="/tools/remove-bg" className="rounded-lg px-3 py-2 text-sm text-neutral-400 hover:text-white">Remove BG</Link>
+            <Link href="/gallery" className="rounded-lg px-3 py-2 text-sm text-neutral-400 hover:text-white">Gallery</Link>
+            <Link href="/library" className="rounded-lg px-3 py-2 text-sm text-neutral-400 hover:text-white">Library</Link>
             {loggedIn ? (
-              <Link href="/library" className="pro-btn pro-btn-primary ml-2 px-5 py-2">Open library</Link>
+              <Link href="/library" className="pro-btn pro-btn-primary ml-2">Open library</Link>
             ) : (
               <>
-                <Link href="/login" className="pro-btn pro-btn-secondary ml-2 px-4 py-2">Sign in</Link>
-                <Link href="/login?tab=register" className="pro-btn pro-btn-primary px-5 py-2">Get started</Link>
+                <Link href="/login" className="pro-btn pro-btn-secondary ml-2">Sign in</Link>
+                <Link href="/login?tab=register" className="pro-btn pro-btn-primary">Get started</Link>
               </>
             )}
           </nav>
-
-          <button type="button" className="flex h-11 w-11 items-center justify-center rounded-lg border border-white/10 text-neutral-300 md:hidden" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}>
+          <button type="button" className="flex h-11 w-11 items-center justify-center rounded-lg border border-white/10 text-neutral-300 md:hidden" aria-label="Menu" onClick={() => setMenuOpen((v) => !v)}>
             {menuOpen ? "✕" : "☰"}
           </button>
         </div>
-
         {menuOpen && (
-          <div className="border-t border-white/5 bg-[#0a0a0a]/95 px-6 py-4 backdrop-blur-md md:hidden">
-            <div className="flex flex-col gap-1">
-              <Link href="/tools/remove-bg" className="py-2.5 text-sm text-neutral-300" onClick={() => setMenuOpen(false)}>Remove BG</Link>
-              <Link href="/gallery" className="py-2.5 text-sm text-neutral-300" onClick={() => setMenuOpen(false)}>Gallery</Link>
-              <Link href="/library" className="py-2.5 text-sm text-neutral-300" onClick={() => setMenuOpen(false)}>Library</Link>
-              <div className="mt-3 flex gap-2">
-                {loggedIn ? (
-                  <Link href="/library" className="pro-btn pro-btn-primary flex-1 py-2.5" onClick={() => setMenuOpen(false)}>Open library</Link>
-                ) : (
-                  <>
-                    <Link href="/login" className="pro-btn pro-btn-secondary flex-1 py-2.5" onClick={() => setMenuOpen(false)}>Sign in</Link>
-                    <Link href="/login?tab=register" className="pro-btn pro-btn-primary flex-1 py-2.5" onClick={() => setMenuOpen(false)}>Register</Link>
-                  </>
-                )}
-              </div>
+          <div className="border-t border-white/10 bg-[#0a0a0a] px-6 py-4 md:hidden">
+            <Link href="/tools/remove-bg" className="block py-2.5 text-sm text-neutral-300" onClick={() => setMenuOpen(false)}>Remove BG</Link>
+            <Link href="/gallery" className="block py-2.5 text-sm text-neutral-300" onClick={() => setMenuOpen(false)}>Gallery</Link>
+            <Link href="/library" className="block py-2.5 text-sm text-neutral-300" onClick={() => setMenuOpen(false)}>Library</Link>
+            <div className="mt-3 flex gap-2">
+              {loggedIn ? (
+                <Link href="/library" className="pro-btn pro-btn-primary flex-1" onClick={() => setMenuOpen(false)}>Open library</Link>
+              ) : (
+                <>
+                  <Link href="/login" className="pro-btn pro-btn-secondary flex-1" onClick={() => setMenuOpen(false)}>Sign in</Link>
+                  <Link href="/login?tab=register" className="pro-btn pro-btn-primary flex-1" onClick={() => setMenuOpen(false)}>Register</Link>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -186,22 +174,18 @@ export default function HomePage() {
       <main className="relative z-10 pt-16">
         <section className="pro-section">
           <div className="pro-container max-w-3xl text-center">
-            <div className="pro-fade-up">
-              <span className="pro-badge">Account required · Secure uploads</span>
-              <h1 className="pro-display mt-8 text-5xl text-white md:text-7xl lg:text-[5.5rem]">
-                Your media, <span className="pro-gradient-text">on the edge</span>
-              </h1>
-              <p className="mx-auto mt-6 max-w-xl text-base font-light leading-relaxed text-neutral-400 md:text-lg">
-                Sign in, drop files, get instant CDN links. Folders, expiry, background removal — no guest uploads.
-              </p>
-              <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-                {loggedIn ? (
-                  <Link href="/library" className="pro-btn pro-btn-primary px-7 py-3">Go to library</Link>
-                ) : (
-                  <Link href="/login?tab=register" className="pro-btn pro-btn-primary px-7 py-3">Get started free</Link>
-                )}
-                <Link href="/tools/remove-bg" className="pro-btn pro-btn-secondary px-7 py-3">Remove background</Link>
-              </div>
+            <span className="pro-badge">Account required · Secure uploads</span>
+            <h1 className="pro-display mt-8 text-5xl text-white md:text-7xl">
+              Your media, <span className="pro-gradient-text">on the edge</span>
+            </h1>
+            <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-neutral-400 md:text-lg">
+              Sign in, drop files, get instant CDN links. Folders, expiry, background removal — no guest uploads.
+            </p>
+            <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+              <Link href={loggedIn ? "/library" : "/login?tab=register"} className="pro-btn pro-btn-primary">
+                {loggedIn ? "Go to library" : "Get started free"}
+              </Link>
+              <Link href="/tools/remove-bg" className="pro-btn pro-btn-secondary">Remove background</Link>
             </div>
 
             <Hero3D />
@@ -210,31 +194,25 @@ export default function HomePage() {
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
               onDrop={(e) => { e.preventDefault(); setDragOver(false); onPick(e.dataTransfer.files); }}
-              className={`pro-fade-up relative mx-auto mt-10 max-w-2xl overflow-hidden rounded-2xl border border-dashed transition-all ${dragOver ? "border-white/40 bg-white/5" : "border-white/10 bg-white/[0.02]"}`}
+              className={`relative mx-auto mt-10 max-w-2xl overflow-hidden rounded-2xl border border-dashed transition-all ${dragOver ? "border-white/40 bg-white/10" : "border-white/15 bg-white/5"}`}
             >
               {loggedIn ? (
                 <input ref={ref} type="file" accept="image/*,video/*,audio/*,.html,.htm" multiple onChange={(e) => onPick(e.target.files)} className="absolute inset-0 z-10 cursor-pointer opacity-0" disabled={uploading} />
               ) : (
-                <button type="button" onClick={requireLogin} className="absolute inset-0 z-10 cursor-pointer" aria-label="Sign in to upload" />
+                <button type="button" onClick={requireLogin} className="absolute inset-0 z-10 cursor-pointer" aria-label="Sign in" />
               )}
               <div className="pointer-events-none px-6 py-14 text-center">
-                {!loggedIn && (
-                  <div className="mb-3 flex justify-center">
-                    <span className="mh-lock-badge">Sign in required to upload</span>
-                  </div>
-                )}
+                {!loggedIn && <div className="mb-3 flex justify-center"><span className="mh-lock-badge">Sign in required to upload</span></div>}
                 <p className="text-base font-medium text-white">
                   {uploading ? `Uploading ${progress.done}/${progress.total}…` : loggedIn ? "Drop files here" : "Create an account to upload"}
                 </p>
-                <p className="mt-2 text-sm font-light text-neutral-500">
-                  {loggedIn ? "Image · Video · Audio · HTML · parallel · original quality" : "Free register · private by default"}
+                <p className="mt-2 text-sm text-neutral-500">
+                  {loggedIn ? "Image · Video · Audio · HTML · original quality" : "Free register · private by default"}
                 </p>
               </div>
             </div>
 
-            {error && (
-              <div className="mx-auto mt-4 max-w-2xl rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>
-            )}
+            {error && <div className="mx-auto mt-4 max-w-2xl rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>}
 
             {items.length > 0 && (
               <div className="mx-auto mt-10 max-w-2xl space-y-3 text-left">
@@ -243,18 +221,18 @@ export default function HomePage() {
                   <div key={item.url} className="pro-card flex flex-col gap-3 p-3 sm:flex-row sm:items-center">
                     <div className="h-14 w-full shrink-0 overflow-hidden rounded-lg bg-neutral-900 sm:w-16">
                       {isImg(item.contentType) ? (
-                        <img src={item.url} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                        <img src={item.url} alt="" className="h-full w-full object-cover" loading="lazy" />
                       ) : isVid(item.contentType) ? (
                         <video src={item.url} className="h-full w-full object-cover" muted preload="metadata" />
                       ) : (
-                        <div className="flex h-full items-center justify-center text-[10px] uppercase tracking-wider text-neutral-600">File</div>
+                        <div className="flex h-full items-center justify-center text-xs text-neutral-600">FILE</div>
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-neutral-100">{item.name}</p>
+                      <p className="truncate text-sm font-medium">{item.name}</p>
                       <p className="truncate font-mono text-xs text-neutral-600">{item.url}</p>
                     </div>
-                    <button type="button" onClick={() => copy(item.url)} className="pro-btn pro-btn-primary px-4 py-2 text-xs">
+                    <button type="button" onClick={() => copy(item.url)} className="pro-btn pro-btn-primary text-xs">
                       {copied === item.url ? "Copied" : "Copy URL"}
                     </button>
                   </div>
@@ -264,54 +242,48 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="pro-section border-t border-white/5">
+        <section className="pro-section border-t border-white/10">
           <div className="pro-container">
-            <div className="pro-reveal mx-auto max-w-2xl text-center">
+            <div className="mx-auto max-w-2xl text-center">
               <h2 className="pro-display text-3xl text-white md:text-5xl">
                 Built for <span className="pro-gradient-text">creators</span>
               </h2>
-              <p className="mt-4 font-light leading-relaxed text-neutral-400">
-                Everything you need to host and share media without a public free-for-all.
-              </p>
+              <p className="mt-4 leading-relaxed text-neutral-400">Host and share media without a public free-for-all.</p>
             </div>
-            <div className="mt-16 grid gap-6 md:grid-cols-2 md:gap-8 lg:grid-cols-3">
+            <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {FEATURES.map((c, i) => (
-                <div key={c.t} className="pro-card pro-reveal p-6 md:p-8">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 text-xs font-medium text-neutral-400">
+                <div key={c.t} className="pro-card p-6 md:p-8">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 text-xs text-neutral-400">
                     {String(i + 1).padStart(2, "0")}
                   </div>
                   <h3 className="mt-5 text-sm font-medium text-white">{c.t}</h3>
-                  <p className="mt-2 text-sm font-light leading-relaxed text-neutral-400">{c.d}</p>
+                  <p className="mt-2 text-sm leading-relaxed text-neutral-400">{c.d}</p>
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        <section className="pro-section border-t border-white/5">
+        <section className="pro-section border-t border-white/10">
           <div className="pro-container max-w-3xl text-center">
-            <div className="pro-reveal">
-              <h2 className="pro-display text-3xl text-white md:text-4xl">Ready when you are</h2>
-              <p className="mt-4 font-light text-neutral-400">Create a free account and start uploading in seconds.</p>
-              <Link href={loggedIn ? "/library" : "/login?tab=register"} className="pro-btn pro-btn-primary mt-8 px-8 py-3">
-                {loggedIn ? "Open library" : "Get started free"}
-              </Link>
-            </div>
+            <h2 className="pro-display text-3xl text-white md:text-4xl">Ready when you are</h2>
+            <p className="mt-4 text-neutral-400">Create a free account and start uploading in seconds.</p>
+            <Link href={loggedIn ? "/library" : "/login?tab=register"} className="pro-btn pro-btn-primary mt-8 inline-flex">
+              {loggedIn ? "Open library" : "Get started free"}
+            </Link>
           </div>
         </section>
       </main>
 
-      <footer className="relative z-10 border-t border-white/5">
-        <div className="pro-container py-16">
+      <footer className="relative z-10 border-t border-white/10">
+        <div className="pro-container py-14">
           <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <div className="flex items-center gap-2">
-                <div className="flex h-7 w-7 items-center justify-center rounded-md border border-white/10 text-[9px] font-semibold text-white">MH</div>
-                <span className="text-sm font-medium text-white">Media Host</span>
+                <div className="flex h-7 w-7 items-center justify-center rounded-md border border-white/10 text-[9px] font-semibold">MH</div>
+                <span className="text-sm font-medium">Media Host</span>
               </div>
-              <p className="mt-4 text-sm font-light leading-relaxed text-neutral-500">
-                Private CDN hosting for images, video, audio, and HTML.
-              </p>
+              <p className="mt-4 text-sm leading-relaxed text-neutral-500">Private CDN for images, video, audio, and HTML.</p>
             </div>
             <div>
               <p className="text-[10px] font-medium uppercase tracking-widest text-neutral-600">Product</p>
@@ -333,12 +305,11 @@ export default function HomePage() {
               <p className="text-[10px] font-medium uppercase tracking-widest text-neutral-600">Social</p>
               <ul className="mt-4 space-y-2 text-xs text-neutral-500">
                 <li><a href="https://github.com/BluHExH/media-host" target="_blank" rel="noreferrer" className="hover:text-white">GitHub</a></li>
-                <li><a href="https://vercel.com" target="_blank" rel="noreferrer" className="hover:text-white">Vercel</a></li>
               </ul>
             </div>
           </div>
-          <p className="mt-12 border-t border-white/5 pt-8 text-[10px] text-neutral-600">
-            © {new Date().getFullYear()} Media Host. Login required for all uploads.
+          <p className="mt-12 border-t border-white/10 pt-8 text-[10px] text-neutral-600">
+            © {new Date().getFullYear()} Media Host. Login required for uploads.
           </p>
         </div>
       </footer>
