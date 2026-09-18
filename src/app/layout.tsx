@@ -1,28 +1,46 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
   display: "swap",
   preload: true,
 });
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-  display: "swap",
-  preload: false,
-});
 
 export const metadata: Metadata = {
-  title: "Media Host — Private image & video hosting",
-  description: "Sign in to upload. Folders, expiry links, CDN URLs. No guest uploads.",
+  title: {
+    default: "Media Host — Private CDN for images, video & audio",
+    template: "%s · Media Host",
+  },
+  description:
+    "Secure personal media hosting. Upload images, video, audio and HTML. Folders, expiry links, background removal, and private libraries — login required.",
+  keywords: [
+    "image hosting",
+    "video hosting",
+    "CDN",
+    "private media library",
+    "background removal",
+  ],
+  authors: [{ name: "Media Host" }],
+  openGraph: {
+    title: "Media Host — Private CDN library",
+    description: "Sign in, upload, get instant CDN URLs. Folders, expiry, Remove BG.",
+    type: "website",
+    siteName: "Media Host",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Media Host",
+    description: "Private image & video hosting with CDN links.",
+  },
+  robots: { index: true, follow: true },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full`}>
+    <html lang="en" className={`${inter.variable} h-full`}>
       <body className="min-h-full antialiased">{children}</body>
     </html>
   );
