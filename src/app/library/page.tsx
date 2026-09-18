@@ -279,6 +279,7 @@ export default function LibraryPage() {
           </div>
           <div className="flex items-center gap-2 text-sm">
             <span className="hidden text-slate-500 sm:inline">{user?.username || "User"}</span>
+            <Link href="/tools/remove-bg" className="rounded-lg px-2.5 py-1 font-medium text-blue-600 hover:bg-blue-50">Remove BG</Link>
             <Link href="/profile" className="rounded-lg px-2.5 py-1 text-slate-600 hover:bg-slate-100">Profile</Link>
             <Link href="/gallery" className="rounded-lg px-2.5 py-1 text-slate-600 hover:bg-slate-100">Gallery</Link>
             <button type="button" onClick={() => { clearAuth(); router.push("/login"); }} className="rounded-lg border border-slate-200 px-2.5 py-1 text-slate-600 hover:bg-slate-50">Sign out</button>
@@ -298,7 +299,7 @@ export default function LibraryPage() {
         <div onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); openUploadModal(e.dataTransfer.files); }} className="relative rounded-2xl border-2 border-dashed border-slate-200 bg-white py-12 text-center transition hover:border-blue-300 hover:bg-blue-50/30">
           <input ref={ref} type="file" accept="image/*,video/*,audio/*,.html,.htm" multiple onChange={(e) => openUploadModal(e.target.files)} className="absolute inset-0 cursor-pointer opacity-0" disabled={uploading || !!pending} />
           <p className="text-sm font-semibold text-slate-800">Drop files or click to upload</p>
-          <p className="mt-1 text-xs text-slate-500">Parallel upload · multi-select · move folders · original quality</p>
+          <p className="mt-1 text-xs text-slate-500">Parallel upload · multi-select · Remove BG · original quality</p>
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
@@ -361,6 +362,9 @@ export default function LibraryPage() {
                     {isHtmlFile(file) && <p className="text-[10px] text-emerald-600">Opens as page (not download)</p>}
                     <div className="flex flex-wrap gap-2">
                       <button type="button" onClick={() => copy(link)} className="mh-action flex-1 rounded-lg bg-blue-600 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">{copied === link ? "Copied" : "Copy URL"}</button>
+                      {isImg(file.contentType) && (
+                        <Link href="/tools/remove-bg" className="mh-action rounded-lg border border-violet-200 px-2 py-1.5 text-xs font-medium text-violet-600 hover:bg-violet-50">BG</Link>
+                      )}
                       {isHtmlFile(file) && (
                         <a href={link} target="_blank" rel="noreferrer" className="mh-action rounded-lg border border-blue-200 px-2 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50">Open</a>
                       )}
@@ -407,7 +411,7 @@ export default function LibraryPage() {
               </div>
               <label className="flex items-center gap-2 text-sm text-slate-600">
                 <input type="checkbox" checked={modalPublic} onChange={(e) => setModalPublic(e.target.checked)} />
-                Also show in public gallery
+                Also show on my public gallery (only I control)
               </label>
             </div>
             <div className="mt-6 flex gap-2">
@@ -433,8 +437,11 @@ export default function LibraryPage() {
                 <iframe src={shareLink(preview)} className="h-[60vh] w-full bg-white" title="html" sandbox="allow-scripts allow-same-origin allow-forms" />
               )}
             </div>
-            <div className="flex gap-2 p-3">
+            <div className="flex flex-wrap gap-2 p-3">
               <button type="button" onClick={() => copy(shareLink(preview))} className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white">{copied === shareLink(preview) ? "Copied" : "Copy URL"}</button>
+              {isImg(preview.contentType) && (
+                <Link href="/tools/remove-bg" className="rounded-lg border border-violet-200 px-4 py-2.5 text-sm font-medium text-violet-600">Remove BG</Link>
+              )}
               {isHtmlFile(preview) && (
                 <a href={shareLink(preview)} target="_blank" rel="noreferrer" className="rounded-lg border border-blue-200 px-4 py-2.5 text-sm font-medium text-blue-600">Open</a>
               )}
