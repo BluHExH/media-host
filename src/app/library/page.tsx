@@ -265,58 +265,58 @@ export default function LibraryPage() {
 
   if (!ready) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0a0a0a] text-neutral-500">Loading…</div>
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-500">Loading…</div>
     );
   }
 
   return (
-    <div className="page-dark min-h-screen bg-[#0a0a0a] text-neutral-100">
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0a0a0a]/90 backdrop-blur">
+    <div className="min-h-screen bg-slate-50">
+      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
           <div className="flex items-center gap-3">
             <Link href="/" className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-xs font-bold text-white">MH</Link>
-            <span className="text-sm font-semibold text-white">Library</span>
+            <span className="text-sm font-semibold">Library</span>
           </div>
           <div className="flex items-center gap-2 text-sm">
-            <span className="hidden text-neutral-400 sm:inline">{user?.username || "User"}</span>
-            <Link href="/tools/remove-bg" className="rounded-lg px-2.5 py-1 font-medium text-blue-400 hover:bg-white/5">Remove BG</Link>
-            <Link href="/profile" className="rounded-lg px-2.5 py-1 text-neutral-400 hover:bg-white/5">Profile</Link>
-            <Link href="/gallery" className="rounded-lg px-2.5 py-1 text-neutral-400 hover:bg-white/5">Gallery</Link>
-            <button type="button" onClick={() => { clearAuth(); router.push("/login"); }} className="rounded-lg border border-white/10 px-2.5 py-1 text-neutral-400 hover:bg-white/5">Sign out</button>
+            <span className="hidden text-slate-500 sm:inline">{user?.username || "User"}</span>
+            <Link href="/tools/remove-bg" className="rounded-lg px-2.5 py-1 font-medium text-blue-600 hover:bg-blue-50">Remove BG</Link>
+            <Link href="/profile" className="rounded-lg px-2.5 py-1 text-slate-600 hover:bg-slate-100">Profile</Link>
+            <Link href="/gallery" className="rounded-lg px-2.5 py-1 text-slate-600 hover:bg-slate-100">Gallery</Link>
+            <button type="button" onClick={() => { clearAuth(); router.push("/login"); }} className="rounded-lg border border-slate-200 px-2.5 py-1 text-slate-600 hover:bg-slate-50">Sign out</button>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-5xl space-y-5 px-4 py-8">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-neutral-500">Folder:</span>
-          <button type="button" onClick={() => setFolderFilter("all")} className={`mh-chip rounded-lg px-3 py-1 text-xs font-medium ${folderFilter === "all" ? "bg-white text-black" : "border border-white/10 bg-neutral-900 text-neutral-400"}`}>All</button>
+          <span className="text-xs font-medium text-slate-500">Folder:</span>
+          <button type="button" onClick={() => setFolderFilter("all")} className={`mh-chip rounded-lg px-3 py-1 text-xs font-medium ${folderFilter === "all" ? "bg-slate-900 text-white" : "border border-slate-200 bg-white text-slate-600"}`}>All</button>
           {albums.map((a) => (
-            <button key={a} type="button" onClick={() => setFolderFilter(a)} className={`mh-chip rounded-lg px-3 py-1 text-xs font-medium ${folderFilter === a ? "bg-blue-600 text-white" : "border border-white/10 bg-neutral-900 text-neutral-400"}`}>📁 {a}</button>
+            <button key={a} type="button" onClick={() => setFolderFilter(a)} className={`mh-chip rounded-lg px-3 py-1 text-xs font-medium ${folderFilter === a ? "bg-blue-600 text-white" : "border border-slate-200 bg-white text-slate-600"}`}>📁 {a}</button>
           ))}
         </div>
 
-        <div onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); openUploadModal(e.dataTransfer.files); }} className="relative rounded-2xl border-2 border-dashed border-white/15 bg-neutral-900/50 py-12 text-center transition hover:border-blue-500/50">
+        <div onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); openUploadModal(e.dataTransfer.files); }} className="relative rounded-2xl border-2 border-dashed border-slate-200 bg-white py-12 text-center transition hover:border-blue-300 hover:bg-blue-50/30">
           <input ref={ref} type="file" accept="image/*,video/*,audio/*,.html,.htm" multiple onChange={(e) => openUploadModal(e.target.files)} className="absolute inset-0 cursor-pointer opacity-0" disabled={uploading || !!pending} />
-          <p className="text-sm font-semibold text-white">Drop files or click to upload</p>
-          <p className="mt-1 text-xs text-neutral-500">Parallel upload · multi-select · Remove BG · original quality</p>
+          <p className="text-sm font-semibold text-slate-800">Drop files or click to upload</p>
+          <p className="mt-1 text-xs text-slate-500">Parallel upload · multi-select · Remove BG · original quality</p>
         </div>
 
-        {error && <p className="text-sm text-red-400">{error}</p>}
+        {error && <p className="text-sm text-red-600">{error}</p>}
 
         <div className="flex flex-wrap gap-2">
           {(["all", "image", "video", "audio", "html"] as const).map((f) => (
-            <button key={f} type="button" onClick={() => setTypeFilter(f)} className={`mh-chip rounded-lg px-3 py-1 text-xs font-medium capitalize ${typeFilter === f ? "bg-blue-600 text-white" : "border border-white/10 bg-neutral-900 text-neutral-400"}`}>{f}</button>
+            <button key={f} type="button" onClick={() => setTypeFilter(f)} className={`mh-chip rounded-lg px-3 py-1 text-xs font-medium capitalize ${typeFilter === f ? "bg-blue-600 text-white" : "border border-slate-200 bg-white text-slate-600"}`}>{f}</button>
           ))}
         </div>
 
         {selected.size > 0 && (
-          <div className="mh-bulk-bar sticky top-16 z-10 flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-neutral-900/95 px-3 py-2.5">
-            <span className="text-sm font-medium text-white">{selected.size} selected</span>
-            <button type="button" onClick={selectAllFiltered} className="mh-action rounded-lg border border-white/10 bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-200">Select all ({filtered.length})</button>
-            <button type="button" onClick={clearSelection} className="mh-action rounded-lg border border-white/10 bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-400">Clear</button>
+          <div className="mh-bulk-bar sticky top-16 z-10 flex flex-wrap items-center gap-2 rounded-xl border border-blue-200 bg-blue-50/95 px-3 py-2.5 shadow-sm">
+            <span className="text-sm font-medium text-blue-900">{selected.size} selected</span>
+            <button type="button" onClick={selectAllFiltered} className="mh-action rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100">Select all ({filtered.length})</button>
+            <button type="button" onClick={clearSelection} className="mh-action rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">Clear</button>
             <select
-              className="h-8 rounded-lg border border-white/10 bg-neutral-800 px-2 text-xs font-medium text-white"
+              className="h-8 rounded-lg border border-blue-200 bg-white px-2 text-xs font-medium text-slate-800"
               defaultValue=""
               onChange={(e) => {
                 const v = e.target.value;
@@ -332,42 +332,43 @@ export default function LibraryPage() {
                 <option key={a} value={a}>📁 {a}</option>
               ))}
             </select>
-            <button type="button" onClick={() => del(Array.from(selected))} className="mh-action ml-auto rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white">Delete selected</button>
+            <button type="button" onClick={() => del(Array.from(selected))} className="mh-action ml-auto rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700">Delete selected</button>
           </div>
         )}
 
         {loading ? (
-          <p className="py-12 text-center text-sm text-neutral-500">Loading…</p>
+          <p className="py-12 text-center text-sm text-slate-500">Loading…</p>
         ) : filtered.length === 0 ? (
-          <p className="py-12 text-center text-sm text-neutral-500">No files in this folder</p>
+          <p className="py-12 text-center text-sm text-slate-500">No files in this folder</p>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map((file) => {
               const link = shareLink(file);
               return (
-                <div key={file.url} className={`mh-media-card overflow-hidden rounded-xl border border-white/10 bg-neutral-900 ${selected.has(file.url) ? "is-selected" : ""}`}>
+                <div key={file.url} className={`mh-media-card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ${selected.has(file.url) ? "is-selected" : ""}`}>
                   <input type="checkbox" className="mh-check" checked={selected.has(file.url)} onChange={() => toggleSelect(file.url)} onClick={(e) => e.stopPropagation()} title="Select" aria-label="Select file" />
-                  <button type="button" onClick={() => setPreview(file)} className="block aspect-video w-full bg-neutral-800">
+                  <button type="button" onClick={() => setPreview(file)} className="block aspect-video w-full bg-slate-100">
                     {isImg(file.contentType) ? (
                       <img src={file.url} alt="" className="h-full w-full object-cover" loading="lazy" />
                     ) : isVid(file.contentType) ? (
                       <video src={file.url} className="h-full w-full object-cover" muted preload="metadata" />
                     ) : (
-                      <div className="flex h-full items-center justify-center text-xs text-neutral-500">{isHtmlFile(file) ? "HTML page" : "File"}</div>
+                      <div className="flex h-full items-center justify-center text-xs text-slate-400">{isHtmlFile(file) ? "HTML page" : "File"}</div>
                     )}
                   </button>
                   <div className="space-y-2 p-3">
-                    <p className="truncate text-sm font-medium text-neutral-100">{nm(file)}</p>
-                    <p className="text-[11px] text-neutral-500">📁 {file.album || "general"} · {fmt(file.size)}{file.expiresAt ? ` · exp ${new Date(file.expiresAt).toLocaleDateString()}` : ""}</p>
+                    <p className="truncate text-sm font-medium text-slate-800">{nm(file)}</p>
+                    <p className="text-[11px] text-slate-400">📁 {file.album || "general"} · {fmt(file.size)}{file.expiresAt ? ` · exp ${new Date(file.expiresAt).toLocaleDateString()}` : ""}</p>
+                    {isHtmlFile(file) && <p className="text-[10px] text-emerald-600">Opens as page (not download)</p>}
                     <div className="flex flex-wrap gap-2">
-                      <button type="button" onClick={() => copy(link)} className="mh-action flex-1 rounded-lg bg-blue-600 py-1.5 text-xs font-semibold text-white">{copied === link ? "Copied" : "Copy URL"}</button>
+                      <button type="button" onClick={() => copy(link)} className="mh-action flex-1 rounded-lg bg-blue-600 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">{copied === link ? "Copied" : "Copy URL"}</button>
                       {isImg(file.contentType) && (
-                        <Link href="/tools/remove-bg" className="mh-action rounded-lg border border-white/15 px-2 py-1.5 text-xs font-medium text-violet-400">BG</Link>
+                        <Link href="/tools/remove-bg" className="mh-action rounded-lg border border-violet-200 px-2 py-1.5 text-xs font-medium text-violet-600 hover:bg-violet-50">BG</Link>
                       )}
                       {isHtmlFile(file) && (
-                        <a href={link} target="_blank" rel="noreferrer" className="mh-action rounded-lg border border-white/15 px-2 py-1.5 text-xs font-medium text-blue-400">Open</a>
+                        <a href={link} target="_blank" rel="noreferrer" className="mh-action rounded-lg border border-blue-200 px-2 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50">Open</a>
                       )}
-                      <button type="button" onClick={() => del([file.url])} className="mh-action rounded-lg border border-red-500/30 px-2 py-1.5 text-xs text-red-400">Del</button>
+                      <button type="button" onClick={() => del([file.url])} className="mh-action rounded-lg border border-red-100 px-2 py-1.5 text-xs text-red-500 hover:bg-red-50">Del</button>
                     </div>
                   </div>
                 </div>
@@ -378,14 +379,14 @@ export default function LibraryPage() {
       </main>
 
       {pending && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-neutral-900 p-6 shadow-xl">
-            <h2 className="text-base font-semibold text-white">Upload settings</h2>
-            <p className="mt-1 text-sm text-neutral-500">{pending.length} file{pending.length > 1 ? "s" : ""}</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h2 className="text-base font-semibold text-slate-900">Upload settings</h2>
+            <p className="mt-1 text-sm text-slate-500">{pending.length} file{pending.length > 1 ? "s" : ""} · up to 6 parallel</p>
             <div className="mt-5 space-y-4">
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-neutral-400">How long to keep?</label>
-                <select value={modalExpiry} onChange={(e) => setModalExpiry(e.target.value)} className="h-10 w-full rounded-lg border border-white/10 bg-neutral-800 px-3 text-sm text-white">
+                <label className="mb-1.5 block text-xs font-medium text-slate-600">How long to keep?</label>
+                <select value={modalExpiry} onChange={(e) => setModalExpiry(e.target.value)} className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm">
                   <option value="never">Never expire</option>
                   <option value="1">1 day</option>
                   <option value="7">7 days</option>
@@ -395,26 +396,26 @@ export default function LibraryPage() {
                 </select>
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-neutral-400">Folder</label>
-                <select value={modalAlbum} onChange={(e) => setModalAlbum(e.target.value)} className="h-10 w-full rounded-lg border border-white/10 bg-neutral-800 px-3 text-sm text-white">
+                <label className="mb-1.5 block text-xs font-medium text-slate-600">Folder</label>
+                <select value={modalAlbum} onChange={(e) => setModalAlbum(e.target.value)} className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm">
                   {albums.map((a) => (<option key={a} value={a}>{a}</option>))}
                 </select>
                 {!showNewFolder ? (
-                  <button type="button" onClick={() => setShowNewFolder(true)} className="mt-2 text-xs font-medium text-blue-400">+ Create new folder</button>
+                  <button type="button" onClick={() => setShowNewFolder(true)} className="mt-2 text-xs font-medium text-blue-600 hover:underline">+ Create new folder</button>
                 ) : (
                   <div className="mt-2 flex gap-2">
-                    <input value={newFolder} onChange={(e) => setNewFolder(e.target.value)} placeholder="folder-name" className="h-9 flex-1 rounded-lg border border-white/10 bg-neutral-800 px-3 text-sm text-white" />
-                    <button type="button" onClick={createFolderAndSelect} className="rounded-lg bg-white px-3 text-xs font-medium text-black">Add</button>
+                    <input value={newFolder} onChange={(e) => setNewFolder(e.target.value)} placeholder="folder-name" className="h-9 flex-1 rounded-lg border border-slate-200 px-3 text-sm" />
+                    <button type="button" onClick={createFolderAndSelect} className="rounded-lg bg-slate-900 px-3 text-xs font-medium text-white">Add</button>
                   </div>
                 )}
               </div>
-              <label className="flex items-center gap-2 text-sm text-neutral-400">
+              <label className="flex items-center gap-2 text-sm text-slate-600">
                 <input type="checkbox" checked={modalPublic} onChange={(e) => setModalPublic(e.target.checked)} />
                 Also show on my public gallery
               </label>
             </div>
             <div className="mt-6 flex gap-2">
-              <button type="button" onClick={cancelModal} disabled={uploading} className="flex-1 rounded-lg border border-white/10 py-2.5 text-sm font-medium text-neutral-300">Cancel</button>
+              <button type="button" onClick={cancelModal} disabled={uploading} className="flex-1 rounded-lg border border-slate-200 py-2.5 text-sm font-medium text-slate-700">Cancel</button>
               <button type="button" onClick={confirmUpload} disabled={uploading} className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{uploading ? "Uploading…" : "Upload"}</button>
             </div>
           </div>
@@ -422,13 +423,13 @@ export default function LibraryPage() {
       )}
 
       {preview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setPreview(null)}>
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-auto rounded-xl border border-white/10 bg-neutral-900" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between border-b border-white/10 px-4 py-3">
-              <p className="truncate text-sm font-medium text-white">{nm(preview)}</p>
-              <button type="button" onClick={() => setPreview(null)} className="text-neutral-400">Close</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setPreview(null)}>
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-auto rounded-xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between border-b px-4 py-3">
+              <p className="truncate text-sm font-medium">{nm(preview)}</p>
+              <button type="button" onClick={() => setPreview(null)} className="text-slate-500">Close</button>
             </div>
-            <div className="bg-neutral-950 p-4">
+            <div className="bg-slate-50 p-4">
               {isImg(preview.contentType) && <img src={preview.url} alt="" className="mx-auto max-h-[60vh]" />}
               {isVid(preview.contentType) && <video src={preview.url} controls autoPlay className="mx-auto max-h-[60vh] w-full" />}
               {isAud(preview.contentType) && <audio src={preview.url} controls autoPlay className="w-full" />}
@@ -439,7 +440,7 @@ export default function LibraryPage() {
             <div className="flex flex-wrap gap-2 p-3">
               <button type="button" onClick={() => copy(shareLink(preview))} className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white">{copied === shareLink(preview) ? "Copied" : "Copy URL"}</button>
               {isImg(preview.contentType) && (
-                <Link href="/tools/remove-bg" className="rounded-lg border border-white/15 px-4 py-2.5 text-sm font-medium text-violet-400">Remove BG</Link>
+                <Link href="/tools/remove-bg" className="rounded-lg border border-violet-200 px-4 py-2.5 text-sm font-medium text-violet-600">Remove BG</Link>
               )}
             </div>
           </div>
