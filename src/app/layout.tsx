@@ -1,12 +1,19 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
   display: "swap",
-  preload: true,
+  weight: ["300", "400", "500", "600"],
+});
+
+const playfair = Playfair_Display({
+  variable: "--font-playfair",
+  subsets: ["latin"],
+  display: "swap",
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -15,18 +22,11 @@ export const metadata: Metadata = {
     template: "%s · Media Host",
   },
   description:
-    "Secure personal media hosting. Upload images, video, audio and HTML. Folders, expiry links, background removal, and private libraries — login required.",
-  keywords: [
-    "image hosting",
-    "video hosting",
-    "CDN",
-    "private media library",
-    "background removal",
-  ],
-  authors: [{ name: "Media Host" }],
+    "Secure personal media hosting. Upload images, video, audio and HTML. Folders, expiry links, background removal, private libraries.",
+  keywords: ["image hosting", "video hosting", "CDN", "private media", "background removal"],
   openGraph: {
-    title: "Media Host — Private CDN library",
-    description: "Sign in, upload, get instant CDN URLs. Folders, expiry, Remove BG.",
+    title: "Media Host",
+    description: "Private CDN library — sign in, upload, share.",
     type: "website",
     siteName: "Media Host",
   },
@@ -40,8 +40,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} h-full`}>
-      <body className="min-h-full antialiased">{children}</body>
+    <html lang="en" className={`${inter.variable} ${playfair.variable} h-full`}>
+      <body className="min-h-full font-light antialiased">{children}</body>
     </html>
   );
 }
