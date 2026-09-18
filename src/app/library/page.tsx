@@ -23,7 +23,6 @@ function isHtmlFile(f: { contentType?: string; pathname?: string; url?: string }
   );
 }
 
-/** Always use our domain proxy for HTML so browser renders, not downloads */
 function shareLink(f: F) {
   if (!isHtmlFile(f)) return f.url;
   if (f.previewUrl?.startsWith("http")) return f.previewUrl;
@@ -51,6 +50,7 @@ export default function LibraryPage() {
   const [modalPublic, setModalPublic] = useState(false);
   const [newFolder, setNewFolder] = useState("");
   const [showNewFolder, setShowNewFolder] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 });
   const ref = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -139,29 +139,56 @@ export default function LibraryPage() {
     if (!pending?.length) return;
     setUploading(true);
     setError("");
+    const list = [...pending];
+    const total = list.length;
+    setUploadProgress({ done: 0, total });
     let ok = 0;
-    for (const file of pending) {
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("album", modalAlbum || "general");
-      fd.append("expiry", modalExpiry);
-      if (modalPublic) fd.append("public", "1");
-      const res = await authFetch("/api/upload", { method: "POST", body: fd });
-      if (res.status === 401) {
-        clearAuth();
-        router.replace("/login");
-        break;
+    let failed = 0;
+    let aborted = false;
+    let index = 0;
+    let completed = 0;
+    const concurrency = Math.min(6, total);
+
+    const worker = async () => {
+      while (index < total && !aborted) {
+        const i = index++;
+        const file = list[i];
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("album", modalAlbum || "general");
+        fd.append("expiry", modalExpiry);
+        if (modalPublic) fd.append("public", "1");
+        try {
+          const res = await authFetch("/api/upload", { method: "POST", body: fd });
+          if (res.status === 401) {
+            aborted = true;
+            clearAuth();
+            router.replace("/login");
+            return;
+          }
+          if (res.ok) ok++;
+          else {
+            failed++;
+            const d = await res.json().catch(() => ({}));
+            setError(d.error || "Failed: " + file.name);
+          }
+        } catch {
+          failed++;
+          setError("Network error: " + file.name);
+        }
+        completed++;
+        setUploadProgress({ done: completed, total });
       }
-      if (res.ok) ok++;
-      else {
-        const d = await res.json().catch(() => ({}));
-        setError(d.error || "Failed: " + file.name);
-      }
-    }
+    };
+
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
     setUploading(false);
     setPending(null);
+    setUploadProgress({ done: 0, total: 0 });
     if (ref.current) ref.current.value = "";
     if (ok) await load();
+    if (failed && ok) setError(`Uploaded ${ok}/${total}. ${failed} failed.`);
+    else if (failed && !ok) setError(`Upload failed (${failed}/${total}).`);
   };
 
   const del = async (url: string) => {
@@ -235,7 +262,7 @@ export default function LibraryPage() {
         <div onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); openUploadModal(e.dataTransfer.files); }} className="relative rounded-2xl border-2 border-dashed border-slate-200 bg-white py-12 text-center">
           <input ref={ref} type="file" accept="image/*,video/*,audio/*,.html,.htm" multiple onChange={(e) => openUploadModal(e.target.files)} className="absolute inset-0 cursor-pointer opacity-0" disabled={uploading || !!pending} />
           <p className="text-sm font-semibold text-slate-800">Drop files or click to upload</p>
-          <p className="mt-1 text-xs text-slate-500">Then choose folder &amp; how long to keep</p>
+          <p className="mt-1 text-xs text-slate-500">Parallel upload · original quality · folder & expiry</p>
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
@@ -288,7 +315,7 @@ export default function LibraryPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <h2 className="text-base font-semibold text-slate-900">Upload settings</h2>
-            <p className="mt-1 text-sm text-slate-500">{pending.length} file{pending.length > 1 ? "s" : ""} selected</p>
+            <p className="mt-1 text-sm text-slate-500">{pending.length} file{pending.length > 1 ? "s" : ""} selected · up to 6 parallel</p>
             <div className="mt-5 space-y-4">
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-slate-600">How long to keep?</label>
@@ -322,7 +349,9 @@ export default function LibraryPage() {
             </div>
             <div className="mt-6 flex gap-2">
               <button type="button" onClick={cancelModal} disabled={uploading} className="flex-1 rounded-lg border border-slate-200 py-2.5 text-sm font-medium text-slate-700">Cancel</button>
-              <button type="button" onClick={confirmUpload} disabled={uploading} className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{uploading ? "Uploading…" : "Upload"}</button>
+              <button type="button" onClick={confirmUpload} disabled={uploading} className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
+                {uploading ? `Uploading ${uploadProgress.done}/${uploadProgress.total}…` : "Upload"}
+              </button>
             </div>
           </div>
         </div>
