@@ -26,7 +26,24 @@ export default function HomePage() {
   const ref = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setLoggedIn(!!localStorage.getItem(TK));
+    const t = localStorage.getItem(TK);
+    if (!t) {
+      setLoggedIn(false);
+      return;
+    }
+    fetch("/api/auth/me", { headers: { "x-auth-token": t } })
+      .then(async (r) => {
+        if (!r.ok) {
+          localStorage.removeItem(TK);
+          setLoggedIn(false);
+          return;
+        }
+        setLoggedIn(true);
+      })
+      .catch(() => {
+        localStorage.removeItem(TK);
+        setLoggedIn(false);
+      });
   }, []);
 
   const headers = useCallback(() => {
@@ -68,6 +85,7 @@ export default function HomePage() {
           if (res.status === 401) {
             aborted = true;
             localStorage.removeItem(TK);
+            setLoggedIn(false);
             requireLogin();
             return;
           }
@@ -98,7 +116,7 @@ export default function HomePage() {
   };
 
   const onPick = (list: FileList | null) => {
-    if (!loggedIn) {
+    if (typeof window === "undefined" || !localStorage.getItem(TK)) {
       requireLogin();
       return;
     }
@@ -146,9 +164,9 @@ export default function HomePage() {
             <Link href="/gallery" className="text-xs uppercase tracking-widest text-neutral-400 transition-colors hover:text-white">Gallery</Link>
             <Link href="/library" className="text-xs uppercase tracking-widest text-neutral-400 transition-colors hover:text-white">Library</Link>
             {loggedIn ? (
-              <Link href="/library" className="rounded-full bg-white px-4 py-1.5 text-xs font-medium text-black transition-colors hover:bg-neutral-200">Open library</Link>
+              <Link href="/library" className="btn-white rounded-full px-4 py-1.5 text-xs font-medium" style={{ background: "#fff", color: "#000" }}>Open library</Link>
             ) : (
-              <Link href="/login?tab=register" className="rounded-full bg-white px-4 py-1.5 text-xs font-medium text-black transition-colors hover:bg-neutral-200">Get started</Link>
+              <Link href="/login?tab=register" className="btn-white rounded-full px-4 py-1.5 text-xs font-medium" style={{ background: "#fff", color: "#000" }}>Get started</Link>
             )}
           </div>
           <button type="button" className="text-neutral-400 hover:text-white md:hidden" onClick={() => setMenuOpen((v) => !v)} aria-label="Menu">{menuOpen ? "✕" : "☰"}</button>
@@ -160,7 +178,7 @@ export default function HomePage() {
           <Link href="/tools/remove-bg" className="text-lg text-neutral-300" onClick={() => setMenuOpen(false)}>Remove BG</Link>
           <Link href="/gallery" className="text-lg text-neutral-300" onClick={() => setMenuOpen(false)}>Gallery</Link>
           <Link href="/library" className="text-lg text-neutral-300" onClick={() => setMenuOpen(false)}>Library</Link>
-          <Link href={loggedIn ? "/library" : "/login?tab=register"} className="mt-4 rounded-full bg-white px-6 py-2 text-sm font-medium text-black" onClick={() => setMenuOpen(false)}>
+          <Link href={loggedIn ? "/library" : "/login?tab=register"} className="btn-white mt-4 rounded-full px-6 py-2 text-sm font-medium" style={{ background: "#fff", color: "#000" }} onClick={() => setMenuOpen(false)}>
             {loggedIn ? "Open library" : "Get started"}
           </Link>
           <button type="button" className="mt-4 text-neutral-500" onClick={() => setMenuOpen(false)}>Close</button>
@@ -186,7 +204,7 @@ export default function HomePage() {
             </p>
 
             <div className="fade-up mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-              <Link href={loggedIn ? "/library" : "/login?tab=register"} className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-3 text-sm font-medium text-black transition-colors hover:bg-neutral-200">
+              <Link href={loggedIn ? "/library" : "/login?tab=register"} className="btn-white inline-flex items-center gap-2 rounded-full px-8 py-3 text-sm font-medium" style={{ background: "#fff", color: "#000" }}>
                 {loggedIn ? "Go to library" : "Get started free"}
               </Link>
               <Link href="/tools/remove-bg" className="inline-flex items-center gap-2 rounded-full px-8 py-3 text-sm font-medium text-neutral-300 transition-colors hover:text-white" style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
@@ -215,7 +233,7 @@ export default function HomePage() {
               {loggedIn ? (
                 <input ref={ref} type="file" accept="image/*,video/*,audio/*,.html,.htm" multiple onChange={(e) => onPick(e.target.files)} className="absolute inset-0 z-10 cursor-pointer opacity-0" disabled={uploading} />
               ) : (
-                <button type="button" onClick={requireLogin} className="absolute inset-0 z-10 cursor-pointer" aria-label="Sign in" />
+                <button type="button" onClick={requireLogin} className="absolute inset-0 z-10 cursor-pointer" aria-label="Sign in to upload" />
               )}
               <div className="pointer-events-none px-6 py-14 text-center">
                 {!loggedIn && (
@@ -250,7 +268,7 @@ export default function HomePage() {
                       <p className="truncate text-sm font-medium">{item.name}</p>
                       <p className="truncate font-mono text-xs text-neutral-600">{item.url}</p>
                     </div>
-                    <button type="button" onClick={() => copy(item.url)} className="rounded-full bg-white px-4 py-2 text-xs font-medium text-black">
+                    <button type="button" onClick={() => copy(item.url)} className="btn-white rounded-full px-4 py-2 text-xs font-medium" style={{ background: "#fff", color: "#000" }}>
                       {copied === item.url ? "Copied" : "Copy URL"}
                     </button>
                   </div>
@@ -300,7 +318,7 @@ export default function HomePage() {
           <div className="relative z-10 mx-auto max-w-3xl text-center">
             <h2 className="font-display text-3xl tracking-tight md:text-5xl">Ready when you are</h2>
             <p className="mx-auto mt-4 max-w-lg font-light text-neutral-400">Create a free account and start uploading in seconds.</p>
-            <Link href={loggedIn ? "/library" : "/login?tab=register"} className="mt-8 inline-flex items-center gap-2 rounded-full bg-white px-8 py-3 text-sm font-medium text-black transition-transform hover:scale-105">
+            <Link href={loggedIn ? "/library" : "/login?tab=register"} className="btn-white mt-8 inline-flex items-center gap-2 rounded-full px-8 py-3 text-sm font-medium transition-transform hover:scale-105" style={{ background: "#fff", color: "#000" }}>
               {loggedIn ? "Open library" : "Get started free"}
             </Link>
           </div>
