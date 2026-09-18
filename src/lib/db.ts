@@ -49,11 +49,12 @@ export async function ensureSchema() {
     key TEXT PRIMARY KEY, count INTEGER NOT NULL DEFAULT 0, window_start TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
   await sql`CREATE TABLE IF NOT EXISTS app_meta (
     key TEXT PRIMARY KEY, value TEXT, updated_at TIMESTAMPTZ DEFAULT NOW())`;
-  // One-time: remove global public feed leak
-  const mig = await sql`SELECT value FROM app_meta WHERE key = 'privacy_unpublish_v1' LIMIT 1`;
+  // Force wipe public gallery for everyone (v2)
+  const mig = await sql`SELECT value FROM app_meta WHERE key = 'privacy_wipe_v2' LIMIT 1`;
   if (!mig.length) {
+    await sql`DELETE FROM media_meta WHERE is_public = true`;
     await sql`UPDATE media_meta SET is_public = false WHERE is_public = true`;
-    await sql`INSERT INTO app_meta (key, value) VALUES ('privacy_unpublish_v1', 'done')
+    await sql`INSERT INTO app_meta (key, value) VALUES ('privacy_wipe_v2', 'done')
       ON CONFLICT (key) DO UPDATE SET value = 'done', updated_at = NOW()`;
   }
   return { ok: true };
