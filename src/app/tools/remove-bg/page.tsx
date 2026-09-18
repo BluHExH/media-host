@@ -8,6 +8,7 @@ import { useSearchParams } from "next/navigation";
 const PUBLIC_PATH =
   "https://staticimgly.com/@imgly/background-removal-data/1.6.0/dist/";
 const TK = "media_host_token";
+const NOBG_FOLDER = "nobg";
 
 async function loadRemoveBg() {
   const url = "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.6.0/+esm";
@@ -32,6 +33,45 @@ function RemoveBgInner() {
   const [savedUrl, setSavedUrl] = useState("");
   const autoStarted = useRef(false);
 
+  const uploadToNobg = async (blob, name) => {
+    const token = typeof window !== "undefined" ? localStorage.getItem(TK) || "" : "";
+    if (!token) {
+      setStatus("Done — Sign in so it auto-saves to folder nobg");
+      return null;
+    }
+    setSaving(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", new File([blob], name, { type: "image/png" }));
+      fd.append("album", NOBG_FOLDER);
+      fd.append("expiry", "never");
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        headers: { "x-auth-token": token },
+        body: fd,
+      });
+      if (res.status === 401) {
+        localStorage.removeItem(TK);
+        setStatus("Done — Sign in to save");
+        return null;
+      }
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || "Save failed");
+      }
+      const d = await res.json();
+      setSavedUrl(d.url);
+      setStatus(`Auto-saved in folder “${NOBG_FOLDER}”`);
+      return d.url;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Auto-save failed");
+      setStatus("Done — use Download if needed");
+      return null;
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const process = useCallback(async (file) => {
     setError("");
     setResult(null);
@@ -40,45 +80,42 @@ function RemoveBgInner() {
     setBusy(true);
     setProgress("");
     setStatus("Loading AI model (first time may take 20–40s)…");
-    setFileName(file.name.replace(/\.[^.]+$/, "") + "-nobg.png");
+    const outName = file.name.replace(/\.[^.]+$/, "") + "-nobg.png";
+    setFileName(outName);
     setOriginal(URL.createObjectURL(file));
 
     try {
       const removeBackground = await loadRemoveBg();
       setStatus("Removing background…");
-      const blob = await removeBackground(file, {
-        publicPath: PUBLIC_PATH,
-        model: "isnet_fp16",
-        output: { format: "image/png", quality: 1 },
-        progress: (key, current, total) => {
-          if (total > 0) setProgress(`${key}: ${Math.round((current / total) * 100)}%`);
-        },
-      });
-      setResultBlob(blob);
-      setResult(URL.createObjectURL(blob));
-      setStatus("Done — download or save to library");
-      setProgress("");
-    } catch (e) {
-      console.error(e);
+      let blob;
       try {
+        blob = await removeBackground(file, {
+          publicPath: PUBLIC_PATH,
+          model: "isnet_fp16",
+          output: { format: "image/png", quality: 1 },
+          progress: (key, current, total) => {
+            if (total > 0) setProgress(`${key}: ${Math.round((current / total) * 100)}%`);
+          },
+        });
+      } catch {
         setStatus("Retrying…");
-        const removeBackground = await loadRemoveBg();
-        const blob = await removeBackground(file, {
+        blob = await removeBackground(file, {
           publicPath: PUBLIC_PATH,
           progress: (key, current, total) => {
             if (total > 0) setProgress(`${key}: ${Math.round((current / total) * 100)}%`);
           },
         });
-        setResultBlob(blob);
-        setResult(URL.createObjectURL(blob));
-        setStatus("Done — download or save to library");
-        setError("");
-        setProgress("");
-      } catch (e2) {
-        setError(e2 instanceof Error ? e2.message : "Failed. Use Chrome/Edge.");
-        setStatus("");
-        setProgress("");
       }
+      setResultBlob(blob);
+      setResult(URL.createObjectURL(blob));
+      setProgress("");
+      setStatus("Saving to folder nobg…");
+      await uploadToNobg(blob, outName);
+    } catch (e) {
+      console.error(e);
+      setError(e instanceof Error ? e.message : "Failed. Use Chrome/Edge.");
+      setStatus("");
+      setProgress("");
     } finally {
       setBusy(false);
     }
@@ -135,35 +172,7 @@ function RemoveBgInner() {
       window.location.href = "/login?next=/tools/remove-bg";
       return;
     }
-    setSaving(true);
-    setError("");
-    try {
-      const fd = new FormData();
-      fd.append("file", new File([resultBlob], fileName, { type: "image/png" }));
-      fd.append("album", "nobg");
-      fd.append("expiry", "never");
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        headers: { "x-auth-token": token },
-        body: fd,
-      });
-      if (res.status === 401) {
-        localStorage.removeItem(TK);
-        window.location.href = "/login?next=/tools/remove-bg";
-        return;
-      }
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        throw new Error(d.error || "Save failed");
-      }
-      const d = await res.json();
-      setSavedUrl(d.url);
-      setStatus("Saved to library (folder: nobg)");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Save failed");
-    } finally {
-      setSaving(false);
-    }
+    await uploadToNobg(resultBlob, fileName);
   };
 
   const clearResult = () => {
@@ -208,7 +217,8 @@ function RemoveBgInner() {
 
       <main className="mx-auto max-w-3xl space-y-6 px-4 py-8">
         <p className="text-sm text-slate-500">
-          From library: opens your image automatically. After remove, save stays in folder <strong>nobg</strong> — delete anytime from library.
+          After remove, PNG is <strong>auto-saved</strong> into library folder{" "}
+          <code className="rounded bg-slate-200 px-1 text-xs">nobg</code>. Delete anytime from Library.
         </p>
 
         {!result && (
@@ -261,30 +271,46 @@ function RemoveBgInner() {
 
         {result && (
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={download} className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
-              Download PNG
-            </button>
             <button
               type="button"
-              onClick={saveToLibrary}
-              disabled={saving || !!savedUrl}
-              className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+              onClick={download}
+              className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
-              {savedUrl ? "Saved ✓" : saving ? "Saving…" : "Save to library"}
+              Download PNG
             </button>
-            <button type="button" onClick={clearResult} className="rounded-lg border border-red-100 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50">
+            {!savedUrl && (
+              <button
+                type="button"
+                onClick={saveToLibrary}
+                disabled={saving}
+                className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {saving ? "Saving…" : "Save to library"}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={clearResult}
+              className="rounded-lg border border-red-100 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50"
+            >
               Clear
             </button>
           </div>
         )}
 
-        {savedUrl && (
+        {(savedUrl || saving) && (
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-            <p className="font-medium">Saved in folder nobg — open library to delete later</p>
-            <p className="mt-1 break-all font-mono text-xs">{savedUrl}</p>
-            <Link href="/library" className="mt-2 inline-block text-sm font-medium text-blue-600 hover:underline">
-              Open library →
-            </Link>
+            {saving && !savedUrl ? (
+              <p className="font-medium">Saving to folder nobg…</p>
+            ) : (
+              <>
+                <p className="font-medium">Saved in automatic folder: nobg</p>
+                {savedUrl && <p className="mt-1 break-all font-mono text-xs">{savedUrl}</p>}
+                <Link href="/library" className="mt-2 inline-block text-sm font-medium text-blue-600 hover:underline">
+                  Open library → filter folder nobg
+                </Link>
+              </>
+            )}
           </div>
         )}
       </main>
@@ -294,7 +320,11 @@ function RemoveBgInner() {
 
 export default function RemoveBgPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-500">Loading…</div>}>
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-500">Loading…</div>
+      }
+    >
       <RemoveBgInner />
     </Suspense>
   );
