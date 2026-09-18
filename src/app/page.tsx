@@ -43,33 +43,47 @@ export default function HomePage() {
     setUploading(true);
     const arr = Array.from(list);
     const next: Uploaded[] = [];
-    for (let i = 0; i < arr.length; i++) {
-      setProgress({ done: i, total: arr.length });
-      const file = arr[i];
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("album", "general");
-      fd.append("expiry", "never");
-      fd.append("public", "1");
-      const res = await fetch("/api/upload", { method: "POST", headers: headers(), body: fd });
-      if (res.status === 401) {
-        localStorage.removeItem(TK);
-        requireLogin();
-        return;
+    let done = 0;
+    const concurrency = Math.min(6, arr.length);
+    let index = 0;
+    let aborted = false;
+    const worker = async () => {
+      while (index < arr.length && !aborted) {
+        const i = index++;
+        const file = arr[i];
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("album", "general");
+        fd.append("expiry", "never");
+        fd.append("public", "1");
+        try {
+          const res = await fetch("/api/upload", { method: "POST", headers: headers(), body: fd });
+          if (res.status === 401) {
+            aborted = true;
+            localStorage.removeItem(TK);
+            requireLogin();
+            return;
+          }
+          if (!res.ok) {
+            const d = await res.json().catch(() => ({}));
+            setError(d.error || "Failed: " + file.name);
+          } else {
+            const d = await res.json();
+            next.push({
+              url: d.url,
+              name: file.name,
+              contentType: d.contentType || file.type,
+              size: d.size || file.size,
+            });
+          }
+        } catch {
+          setError("Network error: " + file.name);
+        }
+        done++;
+        setProgress({ done, total: arr.length });
       }
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        setError(d.error || "Failed: " + file.name);
-        continue;
-      }
-      const d = await res.json();
-      next.push({
-        url: d.url,
-        name: file.name,
-        contentType: d.contentType || file.type,
-        size: d.size || file.size,
-      });
-    }
+    };
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
     setItems((p) => [...next, ...p]);
     setUploading(false);
     setProgress({ done: 0, total: 0 });
@@ -121,11 +135,11 @@ export default function HomePage() {
       <main className="mx-auto max-w-3xl px-4 pb-24 pt-12 sm:px-6 sm:pt-16">
         <div className="mh-fade-up text-center">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-blue-700">Account required · Secure uploads</span>
-          <h1 className="mt-5 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
+          <h1 className="mh-hero-title mt-5 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
             Your media,
             <span className="block bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">floating on the edge</span>
           </h1>
-          <p className="mx-auto mt-4 max-w-lg text-base text-slate-500 sm:text-lg">
+          <p className="mh-hero-sub mx-auto mt-4 max-w-lg text-base text-slate-500 sm:text-lg">
             Sign in, drop files, get instant CDN links. Folders, expiry, and a private library — no guest uploads.
           </p>
         </div>
@@ -150,10 +164,10 @@ export default function HomePage() {
               </div>
             )}
             <p className="text-lg font-semibold text-slate-900">
-              {uploading ? `Uploading ${progress.done + 1}/${progress.total}…` : loggedIn ? "Drop files here" : "Create an account to upload"}
+              {uploading ? `Uploading ${progress.done}/${progress.total}…` : loggedIn ? "Drop files here" : "Create an account to upload"}
             </p>
             <p className="mt-2 text-sm text-slate-500">
-              {loggedIn ? "Image · Video · Audio · HTML · max 100 MB" : "Free register · your files stay private"}
+              {loggedIn ? "Image · Video · Audio · HTML · parallel upload · original quality" : "Free register · your files stay private"}
             </p>
           </div>
         </div>
