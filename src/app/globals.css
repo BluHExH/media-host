@@ -211,3 +211,90 @@ a { color: inherit; text-decoration: none; }
   font-weight: 600;
   padding: 0.25rem 0.65rem;
 }
+
+/* Media cards — hover lift + soft 3D */
+.mh-media-card {
+  position: relative;
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease, border-color 0.2s ease;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.mh-media-card:hover {
+  transform: translateY(-6px) rotateX(4deg) rotateY(-3deg) scale(1.02);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12), 0 4px 12px rgba(37, 99, 235, 0.1);
+  border-color: #93c5fd;
+  z-index: 2;
+}
+.mh-media-card.is-selected {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.35), 0 12px 28px rgba(37, 99, 235, 0.15);
+  transform: translateY(-2px);
+}
+.mh-media-card .mh-check {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 5;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 0.35rem;
+  border: 2px solid #fff;
+  background: rgba(15, 23, 42, 0.35);
+  cursor: pointer;
+  appearance: none;
+  transition: background 0.15s, transform 0.15s;
+}
+.mh-media-card .mh-check:checked {
+  background: #2563eb;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='white'%3E%3Cpath d='M6.5 11.5L3 8l1-1 2.5 2.5L12 4l1 1z'/%3E%3C/svg%3E");
+  background-size: 12px;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+.mh-media-card:hover .mh-check {
+  transform: scale(1.08);
+  background: rgba(37, 99, 235, 0.55);
+}
+
+.mh-chip {
+  transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+}
+.mh-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+.mh-chip:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.mh-action {
+  transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.mh-action:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.1);
+}
+.mh-action:active {
+  transform: scale(0.97);
+}
+
+.mh-bulk-bar {
+  animation: mh-fade-up 0.3s ease both;
+  backdrop-filter: blur(12px);
+}
+
+@media (max-width: 640px) {
+  .mh-media-card:hover {
+    transform: translateY(-3px) scale(1.01);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mh-media-card,
+  .mh-media-card:hover,
+  .mh-chip,
+  .mh-action {
+    transition: none !important;
+    transform: none !important;
+  }
+}
