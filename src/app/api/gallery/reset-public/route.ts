@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
         SELECT url FROM media_meta
         WHERE user_id = ${parsed.userId} AND is_public = true
       `;
-      const urls = rows.map((r: { url: string }) => r.url);
+      const urls = rows.map((r) => String((r as { url?: string }).url || "")).filter(Boolean);
       if (urls.length) {
         await sql`
           DELETE FROM media_meta

@@ -3,7 +3,6 @@
 import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 
-/** High-quality BG removal in browser — image stays local, PNG output */
 export default function RemoveBgPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -11,38 +10,36 @@ export default function RemoveBgPage() {
   const [error, setError] = useState("");
   const [original, setOriginal] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
-  const [fileName, setFileName] = useState("image-no-bg.png");
+  const [fileName, setFileName] = useState("image-nobg.png");
 
   const process = useCallback(async (file: File) => {
     setError("");
     setResult(null);
     setBusy(true);
-    setStatus("Loading AI model (first time may take ~20s)…");
+    setStatus("Loading AI model (first time ~15–30s)…");
     setFileName(file.name.replace(/\.[^.]+$/, "") + "-nobg.png");
-
-    const url = URL.createObjectURL(file);
-    setOriginal(url);
+    setOriginal(URL.createObjectURL(file));
 
     try {
-      const { removeBackground } = await import("@imgly/background-removal");
-      setStatus("Removing background (high quality)…");
+      // @ts-expect-error CDN ESM — not in node_modules
+      const mod = await import("https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.6.0/+esm");
+      const removeBackground =
+        mod.removeBackground || mod.default?.removeBackground || mod.default;
+      if (typeof removeBackground !== "function") {
+        throw new Error("Could not load background-removal library");
+      }
+      setStatus("Removing background…");
       const blob = await removeBackground(file, {
-        model: "isnet",
-        output: {
-          format: "image/png",
-          quality: 1,
-          type: "foreground",
-        },
+        publicPath: "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.6.0/dist/",
       });
-      const out = URL.createObjectURL(blob);
-      setResult(out);
-      setStatus("Done — download PNG (transparent background)");
+      setResult(URL.createObjectURL(blob as Blob));
+      setStatus("Done — download PNG");
     } catch (e) {
       console.error(e);
       setError(
         e instanceof Error
           ? e.message
-          : "Background removal failed. Try a clearer photo (JPG/PNG)."
+          : "Failed. Try Chrome/Edge with a clear JPG or PNG."
       );
       setStatus("");
     } finally {
@@ -57,8 +54,8 @@ export default function RemoveBgPage() {
       setError("Only images (JPG, PNG, WebP)");
       return;
     }
-    if (f.size > 25 * 1024 * 1024) {
-      setError("Max 25 MB");
+    if (f.size > 20 * 1024 * 1024) {
+      setError("Max 20 MB");
       return;
     }
     process(f);
@@ -83,20 +80,24 @@ export default function RemoveBgPage() {
             >
               MH
             </Link>
-            <span className="text-sm font-semibold">Remove background</span>
+            <span className="text-sm font-semibold">Remove BG</span>
           </div>
-          <Link href="/library" className="text-sm text-slate-600 hover:underline">
-            Library
-          </Link>
+          <nav className="flex items-center gap-1 text-sm">
+            <Link href="/library" className="rounded-lg px-2.5 py-1 text-slate-600 hover:bg-slate-100">
+              Library
+            </Link>
+            <Link href="/gallery" className="rounded-lg px-2.5 py-1 text-slate-600 hover:bg-slate-100">
+              Gallery
+            </Link>
+          </nav>
         </div>
       </header>
 
       <main className="mx-auto max-w-5xl space-y-6 px-4 py-8">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">High-quality background removal</h1>
+          <h1 className="text-xl font-semibold text-slate-900">Remove background</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Runs in your browser — image is not uploaded to our server. Output is PNG with transparency.
-            Subject stays sharp (no heavy compression).
+            High quality · runs in your browser · PNG transparency · not uploaded to our server
           </p>
         </div>
 
@@ -119,7 +120,7 @@ export default function RemoveBgPage() {
           <p className="text-sm font-semibold text-slate-800">
             {busy ? status || "Working…" : "Drop image or click to choose"}
           </p>
-          <p className="mt-1 text-xs text-slate-400">JPG / PNG / WebP · up to 25 MB</p>
+          <p className="mt-1 text-xs text-slate-400">JPG / PNG / WebP · max 20 MB</p>
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
@@ -135,8 +136,8 @@ export default function RemoveBgPage() {
             )}
             {result && (
               <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100 p-3">
-                <p className="mb-2 text-xs font-medium text-slate-500">No background (PNG)</p>
-                <img src={result} alt="No background" className="mx-auto max-h-80 object-contain" />
+                <p className="mb-2 text-xs font-medium text-slate-500">No background</p>
+                <img src={result} alt="Result" className="mx-auto max-h-80 object-contain" />
                 <button
                   type="button"
                   onClick={download}
