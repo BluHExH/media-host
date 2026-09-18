@@ -75,6 +75,16 @@ a { color: inherit; text-decoration: none; }
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
 }
 
+/* Force readable text on white CTAs (parent text-white must not leak) */
+.btn-white, a.btn-white, button.btn-white {
+  background: #ffffff !important;
+  color: #000000 !important;
+}
+.btn-white:hover {
+  background: #e5e5e5 !important;
+  color: #000000 !important;
+}
+
 .mh-media-card {
   position: relative;
   background: rgba(23, 23, 23, 0.6) !important;
