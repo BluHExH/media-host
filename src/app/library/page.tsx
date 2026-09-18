@@ -363,7 +363,7 @@ export default function LibraryPage() {
                     <div className="flex flex-wrap gap-2">
                       <button type="button" onClick={() => copy(link)} className="mh-action flex-1 rounded-lg bg-blue-600 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">{copied === link ? "Copied" : "Copy URL"}</button>
                       {isImg(file.contentType) && (
-                        <Link href="/tools/remove-bg" className="mh-action rounded-lg border border-violet-200 px-2 py-1.5 text-xs font-medium text-violet-600 hover:bg-violet-50">BG</Link>
+                        <Link href={`/tools/remove-bg?url=${encodeURIComponent(file.url)}`} className="mh-action rounded-lg border border-violet-200 px-2 py-1.5 text-xs font-medium text-violet-600 hover:bg-violet-50">BG</Link>
                       )}
                       {isHtmlFile(file) && (
                         <a href={link} target="_blank" rel="noreferrer" className="mh-action rounded-lg border border-blue-200 px-2 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50">Open</a>
@@ -382,7 +382,7 @@ export default function LibraryPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <h2 className="text-base font-semibold text-slate-900">Upload settings</h2>
-            <p className="mt-1 text-sm text-slate-500">{pending.length} file{pending.length > 1 ? "s" : ""} · up to 6 parallel</p>
+            <p className="mt-1 text-sm text-slate-500">{pending.length} file{pending.length > 1 ? "s" : ""}</p>
             <div className="mt-5 space-y-4">
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-slate-600">How long to keep?</label>
@@ -440,7 +440,7 @@ export default function LibraryPage() {
             <div className="flex flex-wrap gap-2 p-3">
               <button type="button" onClick={() => copy(shareLink(preview))} className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white">{copied === shareLink(preview) ? "Copied" : "Copy URL"}</button>
               {isImg(preview.contentType) && (
-                <Link href="/tools/remove-bg" className="rounded-lg border border-violet-200 px-4 py-2.5 text-sm font-medium text-violet-600">Remove BG</Link>
+                <Link href={`/tools/remove-bg?url=${encodeURIComponent(preview.url)}`} className="rounded-lg border border-violet-200 px-4 py-2.5 text-sm font-medium text-violet-600">Remove BG</Link>
               )}
             </div>
           </div>
