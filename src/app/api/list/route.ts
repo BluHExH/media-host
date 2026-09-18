@@ -40,33 +40,48 @@ export async function GET(request: NextRequest) {
     await purgeExpired();
     const sql = getSql();
 
+    // My public gallery ONLY — never other users' files
     if (scope === "public") {
+      if (!parsed) {
+        return NextResponse.json(
+          { files: [], albums: [], error: "Login required" },
+          { status: 401 }
+        );
+      }
       const rows = await sql`
         SELECT url, pathname, content_type, size, album, expires_at, created_at
         FROM media_meta
-        WHERE is_public = true AND (expires_at IS NULL OR expires_at > NOW())
+        WHERE user_id = ${parsed.userId}
+          AND is_public = true
+          AND (expires_at IS NULL OR expires_at > NOW())
         ORDER BY created_at DESC LIMIT 200
       `;
       const files = mapRows(rows);
-      return NextResponse.json({ files, albums: [] });
+      return NextResponse.json({
+        files,
+        albums: Array.from(new Set(files.map((f) => f.album))).sort(),
+      });
     }
 
-    if (!parsed) {
-      return NextResponse.json({ error: "Login required" }, { status: 401 });
+    if (parsed) {
+      const rows = await sql`
+        SELECT url, pathname, content_type, size, album, expires_at, created_at
+        FROM media_meta
+        WHERE user_id = ${parsed.userId}
+          AND (expires_at IS NULL OR expires_at > NOW())
+        ORDER BY created_at DESC LIMIT 300
+      `;
+      const files = mapRows(rows);
+      return NextResponse.json({
+        files,
+        albums: Array.from(new Set(files.map((f) => f.album))).sort(),
+      });
     }
 
-    const rows = await sql`
-      SELECT url, pathname, content_type, size, album, expires_at, created_at
-      FROM media_meta
-      WHERE user_id = ${parsed.userId} AND (expires_at IS NULL OR expires_at > NOW())
-      ORDER BY created_at DESC LIMIT 500
-    `;
-    const files = mapRows(rows);
-    const albums = Array.from(new Set(files.map((f: any) => f.album || "general"))).sort();
-    return NextResponse.json({ files, albums });
+    return NextResponse.json({ files: [], albums: [], error: "Login required" }, { status: 401 });
   } catch (e) {
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : "List failed" },
+      { error: e instanceof Error ? e.message : "Failed", files: [] },
       { status: 500 }
     );
   }
