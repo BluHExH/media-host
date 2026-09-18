@@ -12,7 +12,25 @@ type F = {
   contentType: string;
   album: string;
   expiresAt?: string | null;
+  previewUrl?: string;
 };
+
+function isHtmlFile(f: { contentType?: string; pathname?: string; url?: string }) {
+  return (
+    /html/i.test(f.contentType || "") ||
+    /\.html?$/i.test(f.pathname || "") ||
+    /\.html?$/i.test(f.url || "")
+  );
+}
+
+/** Always use our domain proxy for HTML so browser renders, not downloads */
+function shareLink(f: F) {
+  if (!isHtmlFile(f)) return f.url;
+  if (f.previewUrl?.startsWith("http")) return f.previewUrl;
+  const path = f.previewUrl || `/api/render?u=${encodeURIComponent(f.url)}`;
+  if (typeof window === "undefined") return path;
+  return path.startsWith("http") ? path : `${window.location.origin}${path}`;
+}
 
 export default function LibraryPage() {
   const router = useRouter();
@@ -70,8 +88,7 @@ export default function LibraryPage() {
       }
       const d = await res.json();
       setFiles(d.files || []);
-      const al: string[] = Array.isArray(d.albums) ? d.albums : [];
-      const set = new Set(["general", ...al]);
+      const set = new Set<string>(["general", ...(d.albums || [])]);
       (d.files || []).forEach((f: F) => {
         if (f.album) set.add(f.album);
       });
@@ -160,14 +177,14 @@ export default function LibraryPage() {
   const copy = (u: string) => {
     navigator.clipboard.writeText(u);
     setCopied(u);
-    setTimeout(() => setCopied(null), 1800);
+    setTimeout(() => setCopied(null), 2000);
   };
+
   const fmt = (b: number) =>
     b < 1024 ? b + " B" : b < 1e6 ? (b / 1024).toFixed(1) + " KB" : (b / 1e6).toFixed(1) + " MB";
   const isImg = (t: string) => t.startsWith("image/");
   const isVid = (t: string) => t.startsWith("video/");
   const isAud = (t: string) => t.startsWith("audio/");
-  const isHtml = (t: string) => t.includes("html");
   const nm = (f: F) => f.pathname.split("/").pop() || f.pathname;
 
   const filtered = useMemo(
@@ -177,16 +194,17 @@ export default function LibraryPage() {
         if (typeFilter === "image" && !isImg(f.contentType)) return false;
         if (typeFilter === "video" && !isVid(f.contentType)) return false;
         if (typeFilter === "audio" && !isAud(f.contentType)) return false;
-        if (typeFilter === "html" && !isHtml(f.contentType)) return false;
+        if (typeFilter === "html" && !isHtmlFile(f)) return false;
         return true;
       }),
     [files, typeFilter, folderFilter]
   );
 
-  if (!ready)
+  if (!ready) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-500">Loading…</div>
     );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -200,7 +218,7 @@ export default function LibraryPage() {
             <span className="hidden text-slate-500 sm:inline">{user?.username || "User"}</span>
             <Link href="/profile" className="rounded-lg px-2.5 py-1 text-slate-600 hover:bg-slate-100">Profile</Link>
             <Link href="/gallery" className="rounded-lg px-2.5 py-1 text-slate-600 hover:bg-slate-100">Gallery</Link>
-            <button onClick={() => { clearAuth(); router.push("/login"); }} className="rounded-lg border border-slate-200 px-2.5 py-1 text-slate-600">Sign out</button>
+            <button type="button" onClick={() => { clearAuth(); router.push("/login"); }} className="rounded-lg border border-slate-200 px-2.5 py-1 text-slate-600">Sign out</button>
           </div>
         </div>
       </header>
@@ -224,7 +242,7 @@ export default function LibraryPage() {
 
         <div className="flex flex-wrap gap-2">
           {(["all", "image", "video", "audio", "html"] as const).map((f) => (
-            <button key={f} onClick={() => setTypeFilter(f)} className={`rounded-lg px-3 py-1 text-xs font-medium capitalize ${typeFilter === f ? "bg-blue-600 text-white" : "border border-slate-200 bg-white text-slate-600"}`}>{f}</button>
+            <button key={f} type="button" onClick={() => setTypeFilter(f)} className={`rounded-lg px-3 py-1 text-xs font-medium capitalize ${typeFilter === f ? "bg-blue-600 text-white" : "border border-slate-200 bg-white text-slate-600"}`}>{f}</button>
           ))}
         </div>
 
@@ -234,27 +252,34 @@ export default function LibraryPage() {
           <p className="py-12 text-center text-sm text-slate-500">No files in this folder</p>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {filtered.map((file) => (
-              <div key={file.url} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <button type="button" onClick={() => setPreview(file)} className="block aspect-video w-full bg-slate-100">
-                  {isImg(file.contentType) ? (
-                    <img src={file.url} alt="" className="h-full w-full object-cover" loading="lazy" />
-                  ) : isVid(file.contentType) ? (
-                    <video src={file.url} className="h-full w-full object-cover" muted preload="metadata" />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-xs text-slate-400">{isHtml(file.contentType) ? "HTML page" : "File"}</div>
-                  )}
-                </button>
-                <div className="space-y-2 p-3">
-                  <p className="truncate text-sm font-medium text-slate-800">{nm(file)}</p>
-                  <p className="text-[11px] text-slate-400">📁 {file.album || "general"} · {fmt(file.size)}{file.expiresAt ? ` · exp ${new Date(file.expiresAt).toLocaleDateString()}` : ""}</p>
-                  <div className="flex gap-2">
-                    <button type="button" onClick={() => copy(file.url)} className="flex-1 rounded-lg bg-blue-600 py-1.5 text-xs font-semibold text-white">{copied === file.url ? "Copied" : "Copy URL"}</button>
-                    <button type="button" onClick={() => del(file.url)} className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-red-500">Del</button>
+            {filtered.map((file) => {
+              const link = shareLink(file);
+              return (
+                <div key={file.url} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                  <button type="button" onClick={() => setPreview(file)} className="block aspect-video w-full bg-slate-100">
+                    {isImg(file.contentType) ? (
+                      <img src={file.url} alt="" className="h-full w-full object-cover" loading="lazy" />
+                    ) : isVid(file.contentType) ? (
+                      <video src={file.url} className="h-full w-full object-cover" muted preload="metadata" />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-xs text-slate-400">{isHtmlFile(file) ? "HTML page" : "File"}</div>
+                    )}
+                  </button>
+                  <div className="space-y-2 p-3">
+                    <p className="truncate text-sm font-medium text-slate-800">{nm(file)}</p>
+                    <p className="text-[11px] text-slate-400">📁 {file.album || "general"} · {fmt(file.size)}{file.expiresAt ? ` · exp ${new Date(file.expiresAt).toLocaleDateString()}` : ""}</p>
+                    {isHtmlFile(file) && <p className="text-[10px] text-emerald-600">Opens as page (not download)</p>}
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" onClick={() => copy(link)} className="flex-1 rounded-lg bg-blue-600 py-1.5 text-xs font-semibold text-white">{copied === link ? "Copied" : "Copy URL"}</button>
+                      {isHtmlFile(file) && (
+                        <a href={link} target="_blank" rel="noreferrer" className="rounded-lg border border-blue-200 px-2 py-1.5 text-xs font-medium text-blue-600">Open</a>
+                      )}
+                      <button type="button" onClick={() => del(file.url)} className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-red-500">Del</button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>
@@ -279,9 +304,7 @@ export default function LibraryPage() {
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-slate-600">Folder</label>
                 <select value={modalAlbum} onChange={(e) => setModalAlbum(e.target.value)} className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm">
-                  {albums.map((a) => (
-                    <option key={a} value={a}>{a}</option>
-                  ))}
+                  {albums.map((a) => (<option key={a} value={a}>{a}</option>))}
                 </select>
                 {!showNewFolder ? (
                   <button type="button" onClick={() => setShowNewFolder(true)} className="mt-2 text-xs font-medium text-blue-600 hover:underline">+ Create new folder</button>
@@ -316,10 +339,15 @@ export default function LibraryPage() {
               {isImg(preview.contentType) && <img src={preview.url} alt="" className="mx-auto max-h-[60vh]" />}
               {isVid(preview.contentType) && <video src={preview.url} controls autoPlay className="mx-auto max-h-[60vh] w-full" />}
               {isAud(preview.contentType) && <audio src={preview.url} controls autoPlay className="w-full" />}
-              {isHtml(preview.contentType) && <iframe src={preview.url} className="h-[60vh] w-full bg-white" title="html" sandbox="allow-scripts allow-same-origin allow-forms" />}
+              {isHtmlFile(preview) && (
+                <iframe src={shareLink(preview)} className="h-[60vh] w-full bg-white" title="html" sandbox="allow-scripts allow-same-origin allow-forms" />
+              )}
             </div>
-            <div className="p-3">
-              <button type="button" onClick={() => copy(preview.url)} className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white">{copied === preview.url ? "Copied" : "Copy URL"}</button>
+            <div className="flex gap-2 p-3">
+              <button type="button" onClick={() => copy(shareLink(preview))} className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white">{copied === shareLink(preview) ? "Copied" : "Copy URL"}</button>
+              {isHtmlFile(preview) && (
+                <a href={shareLink(preview)} target="_blank" rel="noreferrer" className="rounded-lg border border-blue-200 px-4 py-2.5 text-sm font-medium text-blue-600">Open</a>
+              )}
             </div>
           </div>
         </div>
