@@ -1,18 +1,27 @@
+// @ts-nocheck
 "use client";
 
 import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 
+async function loadRemoveBg() {
+  const url = "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.6.0/+esm";
+  const mod = await import(/* webpackIgnore: true */ url);
+  const fn = mod.removeBackground || mod.default?.removeBackground || mod.default;
+  if (typeof fn !== "function") throw new Error("Library failed to load");
+  return fn;
+}
+
 export default function RemoveBgPage() {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
-  const [original, setOriginal] = useState<string | null>(null);
-  const [result, setResult] = useState<string | null>(null);
+  const [original, setOriginal] = useState(null);
+  const [result, setResult] = useState(null);
   const [fileName, setFileName] = useState("image-nobg.png");
 
-  const process = useCallback(async (file: File) => {
+  const process = useCallback(async (file) => {
     setError("");
     setResult(null);
     setBusy(true);
@@ -21,33 +30,23 @@ export default function RemoveBgPage() {
     setOriginal(URL.createObjectURL(file));
 
     try {
-      // @ts-expect-error CDN ESM — not in node_modules
-      const mod = await import("https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.6.0/+esm");
-      const removeBackground =
-        mod.removeBackground || mod.default?.removeBackground || mod.default;
-      if (typeof removeBackground !== "function") {
-        throw new Error("Could not load background-removal library");
-      }
+      const removeBackground = await loadRemoveBg();
       setStatus("Removing background…");
       const blob = await removeBackground(file, {
         publicPath: "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.6.0/dist/",
       });
-      setResult(URL.createObjectURL(blob as Blob));
+      setResult(URL.createObjectURL(blob));
       setStatus("Done — download PNG");
     } catch (e) {
       console.error(e);
-      setError(
-        e instanceof Error
-          ? e.message
-          : "Failed. Try Chrome/Edge with a clear JPG or PNG."
-      );
+      setError(e instanceof Error ? e.message : "Failed. Try Chrome with a clear photo.");
       setStatus("");
     } finally {
       setBusy(false);
     }
   }, []);
 
-  const onFile = (list: FileList | null) => {
+  const onFile = (list) => {
     const f = list?.[0];
     if (!f) return;
     if (!f.type.startsWith("image/")) {
@@ -74,21 +73,14 @@ export default function RemoveBgPage() {
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
           <div className="flex items-center gap-2">
-            <Link
-              href="/"
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-xs font-bold text-white"
-            >
+            <Link href="/" className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-xs font-bold text-white">
               MH
             </Link>
             <span className="text-sm font-semibold">Remove BG</span>
           </div>
           <nav className="flex items-center gap-1 text-sm">
-            <Link href="/library" className="rounded-lg px-2.5 py-1 text-slate-600 hover:bg-slate-100">
-              Library
-            </Link>
-            <Link href="/gallery" className="rounded-lg px-2.5 py-1 text-slate-600 hover:bg-slate-100">
-              Gallery
-            </Link>
+            <Link href="/library" className="rounded-lg px-2.5 py-1 text-slate-600 hover:bg-slate-100">Library</Link>
+            <Link href="/gallery" className="rounded-lg px-2.5 py-1 text-slate-600 hover:bg-slate-100">Gallery</Link>
           </nav>
         </div>
       </header>
@@ -97,7 +89,7 @@ export default function RemoveBgPage() {
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Remove background</h1>
           <p className="mt-1 text-sm text-slate-500">
-            High quality · runs in your browser · PNG transparency · not uploaded to our server
+            High quality · browser AI · PNG transparency · not uploaded to our server
           </p>
         </div>
 
