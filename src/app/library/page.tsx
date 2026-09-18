@@ -215,6 +215,24 @@ export default function LibraryPage() {
     }
   };
 
+  const moveSelected = async (album: string) => {
+    const urls = Array.from(selected);
+    if (!urls.length || !album) return;
+    const res = await authFetch("/api/move", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ urls, album }),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      setError(d.error || "Move failed");
+      return;
+    }
+    setFiles((prev) => prev.map((f) => (selected.has(f.url) ? { ...f, album } : f)));
+    if (!albums.includes(album)) setAlbums((a) => [...a, album].sort());
+    setSelected(new Set());
+  };
+
   const copy = (u: string) => {
     navigator.clipboard.writeText(u);
     setCopied(u);
@@ -280,7 +298,7 @@ export default function LibraryPage() {
         <div onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); openUploadModal(e.dataTransfer.files); }} className="relative rounded-2xl border-2 border-dashed border-slate-200 bg-white py-12 text-center transition hover:border-blue-300 hover:bg-blue-50/30">
           <input ref={ref} type="file" accept="image/*,video/*,audio/*,.html,.htm" multiple onChange={(e) => openUploadModal(e.target.files)} className="absolute inset-0 cursor-pointer opacity-0" disabled={uploading || !!pending} />
           <p className="text-sm font-semibold text-slate-800">Drop files or click to upload</p>
-          <p className="mt-1 text-xs text-slate-500">Parallel upload · multi-select delete · original quality</p>
+          <p className="mt-1 text-xs text-slate-500">Parallel upload · multi-select · move folders · original quality</p>
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
@@ -296,6 +314,23 @@ export default function LibraryPage() {
             <span className="text-sm font-medium text-blue-900">{selected.size} selected</span>
             <button type="button" onClick={selectAllFiltered} className="mh-action rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100">Select all ({filtered.length})</button>
             <button type="button" onClick={clearSelection} className="mh-action rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">Clear</button>
+            <select
+              className="h-8 rounded-lg border border-blue-200 bg-white px-2 text-xs font-medium text-slate-800"
+              defaultValue=""
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v) {
+                  moveSelected(v);
+                  e.target.value = "";
+                }
+              }}
+              aria-label="Move to folder"
+            >
+              <option value="" disabled>Move to folder…</option>
+              {albums.map((a) => (
+                <option key={a} value={a}>📁 {a}</option>
+              ))}
+            </select>
             <button type="button" onClick={() => del(Array.from(selected))} className="mh-action ml-auto rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700">Delete selected</button>
           </div>
         )}
@@ -305,13 +340,13 @@ export default function LibraryPage() {
         ) : filtered.length === 0 ? (
           <p className="py-12 text-center text-sm text-slate-500">No files in this folder</p>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" style={{ perspective: "900px" }}>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map((file) => {
               const link = shareLink(file);
               return (
                 <div key={file.url} className={`mh-media-card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ${selected.has(file.url) ? "is-selected" : ""}`}>
                   <input type="checkbox" className="mh-check" checked={selected.has(file.url)} onChange={() => toggleSelect(file.url)} onClick={(e) => e.stopPropagation()} title="Select" aria-label="Select file" />
-                  <button type="button" onClick={() => setPreview(file)} className="block aspect-video w-full bg-slate-100 transition-opacity hover:opacity-90">
+                  <button type="button" onClick={() => setPreview(file)} className="block aspect-video w-full bg-slate-100">
                     {isImg(file.contentType) ? (
                       <img src={file.url} alt="" className="h-full w-full object-cover" loading="lazy" />
                     ) : isVid(file.contentType) ? (
