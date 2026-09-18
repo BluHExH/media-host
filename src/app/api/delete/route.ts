@@ -1,6 +1,6 @@
 import { del } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, parseToken, ensureSchema } from "@/lib/db";
+import { getSql, parseToken } from "@/lib/db";
 
 export const runtime = "edge";
 
@@ -13,25 +13,39 @@ export async function DELETE(request: NextRequest) {
     }
 
     const body = await request.json();
-    const urls: string[] = Array.isArray(body.urls) ? body.urls : body.url ? [body.url] : [];
+    const urls: string[] = Array.isArray(body.urls)
+      ? body.urls.slice(0, 500)
+      : body.url
+        ? [body.url]
+        : [];
     if (!urls.length) return NextResponse.json({ error: "URL required" }, { status: 400 });
 
-    await ensureSchema();
     const sql = getSql();
-    for (const url of urls) {
-      const rows = await sql`
-        SELECT id FROM media_meta WHERE url = ${url} AND user_id = ${parsed.userId} LIMIT 1
-      `;
-      if (!rows.length) {
-        return NextResponse.json({ error: "Not your file" }, { status: 403 });
-      }
+    const checks = await Promise.all(
+      urls.map((url) =>
+        sql`SELECT url FROM media_meta WHERE url = ${url} AND user_id = ${parsed.userId} LIMIT 1`
+      )
+    );
+    if (checks.some((rows) => !rows.length)) {
+      return NextResponse.json({ error: "Not your file" }, { status: 403 });
     }
-    for (const url of urls) {
-      await sql`DELETE FROM media_meta WHERE url = ${url} AND user_id = ${parsed.userId}`;
+
+    await Promise.all(
+      urls.map((url) =>
+        sql`DELETE FROM media_meta WHERE url = ${url} AND user_id = ${parsed.userId}`
+      )
+    );
+
+    try {
+      await del(urls);
+    } catch {
+      /* blob already gone */
     }
-    await del(urls);
-    return NextResponse.json({ success: true });
-  } catch {
-    return NextResponse.json({ error: "Delete failed" }, { status: 500 });
+    return NextResponse.json({ success: true, deleted: urls.length });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Delete failed" },
+      { status: 500 }
+    );
   }
 }
