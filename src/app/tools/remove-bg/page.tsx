@@ -4,6 +4,10 @@
 import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 
+/** Official model host for @imgly/background-removal@1.6.0 */
+const PUBLIC_PATH =
+  "https://staticimgly.com/@imgly/background-removal-data/1.6.0/dist/";
+
 async function loadRemoveBg() {
   const url = "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.6.0/+esm";
   const mod = await import(/* webpackIgnore: true */ url);
@@ -20,27 +24,61 @@ export default function RemoveBgPage() {
   const [original, setOriginal] = useState(null);
   const [result, setResult] = useState(null);
   const [fileName, setFileName] = useState("image-nobg.png");
+  const [progress, setProgress] = useState("");
 
   const process = useCallback(async (file) => {
     setError("");
     setResult(null);
     setBusy(true);
-    setStatus("Loading AI model (first time ~15–30s)…");
+    setProgress("");
+    setStatus("Loading AI model (first time may take 20–40s)…");
     setFileName(file.name.replace(/\.[^.]+$/, "") + "-nobg.png");
     setOriginal(URL.createObjectURL(file));
 
     try {
       const removeBackground = await loadRemoveBg();
-      setStatus("Removing background…");
+      setStatus("Downloading model / removing background…");
       const blob = await removeBackground(file, {
-        publicPath: "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.6.0/dist/",
+        publicPath: PUBLIC_PATH,
+        model: "isnet_fp16",
+        output: { format: "image/png", quality: 1 },
+        progress: (key, current, total) => {
+          if (total > 0) {
+            const pct = Math.round((current / total) * 100);
+            setProgress(`${key}: ${pct}%`);
+          }
+        },
       });
       setResult(URL.createObjectURL(blob));
       setStatus("Done — download PNG");
+      setProgress("");
     } catch (e) {
       console.error(e);
-      setError(e instanceof Error ? e.message : "Failed. Try Chrome with a clear photo.");
-      setStatus("");
+      // Retry with default model name
+      try {
+        setStatus("Retrying with default model…");
+        const removeBackground = await loadRemoveBg();
+        const blob = await removeBackground(file, {
+          publicPath: PUBLIC_PATH,
+          progress: (key, current, total) => {
+            if (total > 0) {
+              setProgress(`${key}: ${Math.round((current / total) * 100)}%`);
+            }
+          },
+        });
+        setResult(URL.createObjectURL(blob));
+        setStatus("Done — download PNG");
+        setError("");
+        setProgress("");
+      } catch (e2) {
+        setError(
+          e2 instanceof Error
+            ? e2.message
+            : "Failed. Use Chrome/Edge, clear photo, wait for model download."
+        );
+        setStatus("");
+        setProgress("");
+      }
     } finally {
       setBusy(false);
     }
@@ -73,14 +111,21 @@ export default function RemoveBgPage() {
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
           <div className="flex items-center gap-2">
-            <Link href="/" className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-xs font-bold text-white">
+            <Link
+              href="/"
+              className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-xs font-bold text-white"
+            >
               MH
             </Link>
             <span className="text-sm font-semibold">Remove BG</span>
           </div>
           <nav className="flex items-center gap-1 text-sm">
-            <Link href="/library" className="rounded-lg px-2.5 py-1 text-slate-600 hover:bg-slate-100">Library</Link>
-            <Link href="/gallery" className="rounded-lg px-2.5 py-1 text-slate-600 hover:bg-slate-100">Gallery</Link>
+            <Link href="/library" className="rounded-lg px-2.5 py-1 text-slate-600 hover:bg-slate-100">
+              Library
+            </Link>
+            <Link href="/gallery" className="rounded-lg px-2.5 py-1 text-slate-600 hover:bg-slate-100">
+              Gallery
+            </Link>
           </nav>
         </div>
       </header>
@@ -89,7 +134,7 @@ export default function RemoveBgPage() {
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Remove background</h1>
           <p className="mt-1 text-sm text-slate-500">
-            High quality · browser AI · PNG transparency · not uploaded to our server
+            High quality · runs in your browser · PNG transparency · image stays on your device
           </p>
         </div>
 
@@ -113,6 +158,7 @@ export default function RemoveBgPage() {
             {busy ? status || "Working…" : "Drop image or click to choose"}
           </p>
           <p className="mt-1 text-xs text-slate-400">JPG / PNG / WebP · max 20 MB</p>
+          {progress && <p className="mt-2 text-xs text-blue-600">{progress}</p>}
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
