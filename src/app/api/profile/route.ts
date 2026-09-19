@@ -3,6 +3,13 @@ import { getSql, parseToken, ensureSchema, makeToken } from "@/lib/db";
 
 export const runtime = "edge";
 
+function dayKey(d: Date): string {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const token = request.headers.get("x-auth-token") || "";
@@ -21,24 +28,35 @@ export async function GET(request: NextRequest) {
     const totalSize = await sql`SELECT COALESCE(SUM(size), 0)::bigint AS s FROM media_meta WHERE user_id = ${parsed.userId}`;
 
     const uploads = await sql`
-      SELECT DATE(created_at) AS day, COUNT(*)::int AS c FROM media_meta
-      WHERE user_id = ${parsed.userId} AND created_at > NOW() - INTERVAL '14 days'
-      GROUP BY DATE(created_at) ORDER BY day ASC`;
+      SELECT to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS day, COUNT(*)::int AS c
+      FROM media_meta
+      WHERE user_id = ${parsed.userId}
+        AND created_at > NOW() - INTERVAL '14 days'
+      GROUP BY 1 ORDER BY 1 ASC`;
     const logins = await sql`
-      SELECT DATE(created_at) AS day, COUNT(*)::int AS c FROM login_logs
-      WHERE user_id = ${parsed.userId} AND success = true AND created_at > NOW() - INTERVAL '14 days'
-      GROUP BY DATE(created_at) ORDER BY day ASC`;
+      SELECT to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS day, COUNT(*)::int AS c
+      FROM login_logs
+      WHERE user_id = ${parsed.userId}
+        AND success = true
+        AND created_at > NOW() - INTERVAL '14 days'
+      GROUP BY 1 ORDER BY 1 ASC`;
 
     const days: string[] = [];
+    const now = new Date();
     for (let i = 13; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      days.push(d.toISOString().slice(0, 10));
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i));
+      days.push(dayKey(d));
     }
     const upMap: Record<string, number> = {};
     const logMap: Record<string, number> = {};
-    for (const r of uploads as any[]) upMap[String(r.day).slice(0, 10)] = r.c;
-    for (const r of logins as any[]) logMap[String(r.day).slice(0, 10)] = r.c;
+    for (const r of uploads as any[]) {
+      const k = String(r.day || "").slice(0, 10);
+      if (k) upMap[k] = Number(r.c) || 0;
+    }
+    for (const r of logins as any[]) {
+      const k = String(r.day || "").slice(0, 10);
+      if (k) logMap[k] = Number(r.c) || 0;
+    }
     const activity = days.map((day) => ({
       day,
       uploads: upMap[day] || 0,
