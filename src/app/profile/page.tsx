@@ -201,22 +201,32 @@ export default function ProfilePage() {
               </dl>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-sm font-semibold text-slate-900">Activity (last 14 days)</h2>
-              <div className="mt-6 flex h-40 items-end gap-1.5">
-                {activity.map((a) => {
-                  const upH = Math.round((a.uploads / maxY) * 100);
-                  const logH = Math.round((a.logins / maxY) * 100);
-                  return (
-                    <div key={a.day} className="flex flex-1 flex-col items-center gap-1">
-                      <div className="flex h-32 w-full flex-col justify-end gap-0.5">
-                        <div className="w-full rounded-t bg-blue-500/90" style={{ height: `${upH}%`, minHeight: a.uploads ? 4 : 0 }} />
-                        <div className="w-full rounded-b bg-slate-300" style={{ height: `${logH}%`, minHeight: a.logins ? 3 : 0 }} />
-                      </div>
-                      <span className="text-[9px] text-slate-400">{a.day.slice(5)}</span>
-                    </div>
-                  );
-                })}
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-slate-900">Activity (last 14 days)</h2>
+                <div className="flex gap-3 text-[10px] text-slate-500">
+                  <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-blue-500" /> Uploads</span>
+                  <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-slate-300" /> Logins</span>
+                </div>
               </div>
+              {activity.length === 0 || activity.every((a) => !a.uploads && !a.logins) ? (
+                <p className="mt-8 text-center text-sm text-slate-400">No activity yet — upload a file or sign in again to see the graph.</p>
+              ) : (
+                <div className="mt-6 flex h-44 items-end gap-1.5">
+                  {activity.map((a) => {
+                    const upPx = a.uploads ? Math.max(6, Math.round((a.uploads / maxY) * 120)) : 0;
+                    const logPx = a.logins ? Math.max(4, Math.round((a.logins / maxY) * 120)) : 0;
+                    return (
+                      <div key={a.day} className="flex flex-1 flex-col items-center gap-1" title={`${a.day}: ${a.uploads} uploads, ${a.logins} logins`}>
+                        <div className="flex h-32 w-full flex-col justify-end gap-0.5">
+                          <div className="w-full rounded-t bg-blue-500" style={{ height: upPx }} />
+                          <div className="w-full rounded-b bg-slate-300" style={{ height: logPx }} />
+                        </div>
+                        <span className="text-[9px] text-slate-400">{a.day.slice(5)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             <div className="rounded-2xl border border-red-200 bg-red-50/50 p-6">
               <h2 className="text-sm font-semibold text-red-800">Danger zone</h2>
