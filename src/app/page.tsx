@@ -107,26 +107,31 @@ export default function HomePage() {
 
   return (
     <div className="mh-mesh min-h-screen">
-      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/85 backdrop-blur-md">
+      <header className="mh-nav-glass sticky top-0 z-30 border-b border-[#dce8f0]/">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           <Link href="/" className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-xs font-bold text-white shadow-md shadow-blue-600/25">MH</div>
+            <div
+              className="flex h-9 w-9 items-center justify-center rounded-xl text-xs font-bold text-white"
+              style={{ background: "linear-gradient(135deg, #0F4C81, #3BACB6)", boxShadow: "0 8px 20px rgba(15,76,129,0.35)" }}
+            >
+              MH
+            </div>
             <div className="leading-tight">
-              <p className="text-sm font-semibold tracking-tight">Media Host</p>
-              <p className="hidden text-[11px] text-slate-400 sm:block">Private CDN library</p>
+              <p className="text-sm font-semibold tracking-tight" style={{ color: "#1A2B3C" }}>Media Host</p>
+              <p className="hidden text-[11px] sm:block" style={{ color: "#5a6f82" }}>Private CDN library</p>
             </div>
           </Link>
           <nav className="flex items-center gap-1 sm:gap-2">
-            <Link href="/tools/remove-bg" className="rounded-lg px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50">Remove BG</Link>
-            <Link href="/tools/upscale" className="rounded-lg px-3 py-2 text-sm font-medium text-violet-600 hover:bg-violet-50">Upscale</Link>
-            <Link href="/gallery" className="hidden rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 sm:inline">Gallery</Link>
-            <Link href="/library" className="rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100">Library</Link>
+            <Link href="/tools/remove-bg" className="rounded-full px-3 py-2 text-sm font-medium hover:bg-[#e8f6f8]" style={{ color: "#0F4C81" }}>Remove BG</Link>
+            <Link href="/tools/upscale" className="rounded-full px-3 py-2 text-sm font-medium hover:bg-[#f0e8ff]" style={{ color: "#5b4bb4" }}>Upscale</Link>
+            <Link href="/gallery" className="hidden rounded-full px-3 py-2 text-sm hover:bg-slate-100 sm:inline" style={{ color: "#5a6f82" }}>Gallery</Link>
+            <Link href="/library" className="rounded-full px-3 py-2 text-sm hover:bg-slate-100" style={{ color: "#5a6f82" }}>Library</Link>
             {loggedIn ? (
-              <Link href="/library" className="mh-btn mh-btn-primary px-4 py-2">Open library</Link>
+              <Link href="/library" className="mh-btn mh-btn-primary px-5 py-2.5">Open library</Link>
             ) : (
               <>
-                <Link href="/login" className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50">Sign in</Link>
-                <Link href="/login?tab=register" className="mh-btn mh-btn-primary px-4 py-2">Get started</Link>
+                <Link href="/login" className="rounded-full border-2 px-4 py-2 text-sm font-semibold hover:bg-white" style={{ borderColor: "#0F4C81", color: "#0F4C81" }}>Sign in</Link>
+                <Link href="/login?tab=register" className="mh-btn mh-btn-primary px-5 py-2.5">Get started</Link>
               </>
             )}
           </nav>
@@ -135,12 +140,17 @@ export default function HomePage() {
 
       <main className="mx-auto max-w-3xl px-4 pb-24 pt-12 sm:px-6 sm:pt-16">
         <div className="mh-fade-up text-center">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-blue-700">Account required · Secure uploads</span>
-          <h1 className="mh-hero-title mt-5 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wider"
+            style={{ borderColor: "#82DBD8", background: "#e8f6f8", color: "#0F4C81" }}
+          >
+            Account required · Secure uploads
+          </span>
+          <h1 className="mh-hero-title mt-5 text-4xl font-bold tracking-tight sm:text-5xl" style={{ color: "#1A2B3C" }}>
             Your media,
-            <span className="block bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">floating on the edge</span>
+            <span className="mh-gradient-text block">floating on the edge</span>
           </h1>
-          <p className="mh-hero-sub mx-auto mt-4 max-w-lg text-base text-slate-500 sm:text-lg">
+          <p className="mh-hero-sub mx-auto mt-4 max-w-lg text-base sm:text-lg" style={{ color: "#5a6f82" }}>
             Sign in, drop files, get instant CDN links. Folders, expiry, and a private library — no guest uploads.
           </p>
         </div>
@@ -151,7 +161,12 @@ export default function HomePage() {
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
           onDrop={(e) => { e.preventDefault(); setDragOver(false); onPick(e.dataTransfer.files); }}
-          className={`mh-fade-up relative mt-6 overflow-hidden rounded-3xl border-2 border-dashed transition-all ${dragOver ? "border-blue-500 bg-blue-50/80 shadow-lg shadow-blue-500/10" : "border-slate-200 bg-white shadow-[var(--mh-shadow-lg)]"}`}
+          className={`mh-fade-up relative mt-6 overflow-hidden rounded-3xl border-2 border-dashed transition-all ${dragOver ? "shadow-lg" : ""}`}
+          style={{
+            borderColor: dragOver ? "#3BACB6" : "#dce8f0",
+            background: dragOver ? "rgba(130,219,216,0.2)" : "#fff",
+            boxShadow: dragOver ? "0 12px 40px rgba(59,172,182,0.2)" : "var(--mh-shadow-lg)",
+          }}
         >
           {loggedIn ? (
             <input ref={ref} type="file" accept="image/*,video/*,audio/*,.html,.htm" multiple onChange={(e) => onPick(e.target.files)} className="absolute inset-0 z-10 cursor-pointer opacity-0" disabled={uploading} />
@@ -164,10 +179,10 @@ export default function HomePage() {
                 <span className="mh-lock-badge">🔒 Sign in required to upload</span>
               </div>
             )}
-            <p className="text-lg font-semibold text-slate-900">
+            <p className="text-lg font-semibold" style={{ color: "#1A2B3C" }}>
               {uploading ? `Uploading ${progress.done}/${progress.total}…` : loggedIn ? "Drop files here" : "Create an account to upload"}
             </p>
-            <p className="mt-2 text-sm text-slate-500">
+            <p className="mt-2 text-sm" style={{ color: "#5a6f82" }}>
               {loggedIn ? "Image · Video · Audio · HTML · parallel upload · original quality" : "Free register · your files stay private"}
             </p>
           </div>
@@ -177,7 +192,7 @@ export default function HomePage() {
 
         {items.length > 0 && (
           <div className="mt-10 space-y-3">
-            <h2 className="text-sm font-semibold text-slate-800">Your links</h2>
+            <h2 className="text-sm font-semibold" style={{ color: "#1A2B3C" }}>Your links</h2>
             {items.map((item) => (
               <div key={item.url} className="mh-card flex flex-col gap-3 p-3 sm:flex-row sm:items-center">
                 <div className="h-16 w-full shrink-0 overflow-hidden rounded-xl bg-slate-100 sm:w-20">
@@ -206,15 +221,17 @@ export default function HomePage() {
             { t: "CDN-ready URLs", d: "One click copy — paste into sites, Discord, or embeds." },
           ].map((c, i) => (
             <div key={c.t} className="mh-card p-6">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">{i + 1}</div>
-              <h3 className="mt-4 text-sm font-semibold text-slate-900">{c.t}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-slate-500">{c.d}</p>
+              <div className="mh-num flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold">{i + 1}</div>
+              <h3 className="mt-4 text-sm font-semibold" style={{ color: "#1A2B3C" }}>{c.t}</h3>
+              <p className="mt-2 text-sm leading-relaxed" style={{ color: "#5a6f82" }}>{c.d}</p>
             </div>
           ))}
         </div>
       </main>
 
-      <footer className="border-t border-slate-200/80 py-10 text-center text-xs text-slate-400">Media Host · Login required for all uploads</footer>
+      <footer className="border-t py-10 text-center text-xs" style={{ borderColor: "#dce8f0", color: "#5a6f82" }}>
+        Media Host · Login required for all uploads
+      </footer>
     </div>
   );
 }
