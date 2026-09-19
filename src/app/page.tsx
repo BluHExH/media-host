@@ -107,12 +107,12 @@ export default function HomePage() {
 
   return (
     <div className="mh-mesh min-h-screen">
-      <header className="mh-nav-glass sticky top-0 z-30 border-b border-[#dce8f0]/">
+      <header className="mh-nav-glass sticky top-0 z-30">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           <Link href="/" className="flex items-center gap-2.5">
             <div
               className="flex h-9 w-9 items-center justify-center rounded-xl text-xs font-bold text-white"
-              style={{ background: "linear-gradient(135deg, #0F4C81, #3BACB6)", boxShadow: "0 8px 20px rgba(15,76,129,0.35)" }}
+              style={{ background: "linear-gradient(135deg, #0F4C81, #3BACB6)", boxShadow: "0 8px 20px rgba(15,76,129,0.4)" }}
             >
               MH
             </div>
@@ -122,15 +122,15 @@ export default function HomePage() {
             </div>
           </Link>
           <nav className="flex items-center gap-1 sm:gap-2">
-            <Link href="/tools/remove-bg" className="rounded-full px-3 py-2 text-sm font-medium hover:bg-[#e8f6f8]" style={{ color: "#0F4C81" }}>Remove BG</Link>
-            <Link href="/tools/upscale" className="rounded-full px-3 py-2 text-sm font-medium hover:bg-[#f0e8ff]" style={{ color: "#5b4bb4" }}>Upscale</Link>
-            <Link href="/gallery" className="hidden rounded-full px-3 py-2 text-sm hover:bg-slate-100 sm:inline" style={{ color: "#5a6f82" }}>Gallery</Link>
-            <Link href="/library" className="rounded-full px-3 py-2 text-sm hover:bg-slate-100" style={{ color: "#5a6f82" }}>Library</Link>
+            <Link href="/tools/remove-bg" className="rounded-full px-3 py-2 text-sm font-medium transition hover:bg-white/50" style={{ color: "#0F4C81" }}>Remove BG</Link>
+            <Link href="/tools/upscale" className="rounded-full px-3 py-2 text-sm font-medium transition hover:bg-white/50" style={{ color: "#5b4bb4" }}>Upscale</Link>
+            <Link href="/gallery" className="hidden rounded-full px-3 py-2 text-sm transition hover:bg-white/50 sm:inline" style={{ color: "#5a6f82" }}>Gallery</Link>
+            <Link href="/library" className="rounded-full px-3 py-2 text-sm transition hover:bg-white/50" style={{ color: "#5a6f82" }}>Library</Link>
             {loggedIn ? (
               <Link href="/library" className="mh-btn mh-btn-primary px-5 py-2.5">Open library</Link>
             ) : (
               <>
-                <Link href="/login" className="rounded-full border-2 px-4 py-2 text-sm font-semibold hover:bg-white" style={{ borderColor: "#0F4C81", color: "#0F4C81" }}>Sign in</Link>
+                <Link href="/login" className="mh-btn mh-btn-outline px-4 py-2 text-sm">Sign in</Link>
                 <Link href="/login?tab=register" className="mh-btn mh-btn-primary px-5 py-2.5">Get started</Link>
               </>
             )}
@@ -141,8 +141,13 @@ export default function HomePage() {
       <main className="mx-auto max-w-3xl px-4 pb-24 pt-12 sm:px-6 sm:pt-16">
         <div className="mh-fade-up text-center">
           <span
-            className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wider"
-            style={{ borderColor: "#82DBD8", background: "#e8f6f8", color: "#0F4C81" }}
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wider"
+            style={{
+              border: "1px solid rgba(130,219,216,0.6)",
+              background: "rgba(255,255,255,0.55)",
+              backdropFilter: "blur(10px)",
+              color: "#0F4C81",
+            }}
           >
             Account required · Secure uploads
           </span>
@@ -161,19 +166,14 @@ export default function HomePage() {
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
           onDrop={(e) => { e.preventDefault(); setDragOver(false); onPick(e.dataTransfer.files); }}
-          className={`mh-fade-up relative mt-6 overflow-hidden rounded-3xl border-2 border-dashed transition-all ${dragOver ? "shadow-lg" : ""}`}
-          style={{
-            borderColor: dragOver ? "#3BACB6" : "#dce8f0",
-            background: dragOver ? "rgba(130,219,216,0.2)" : "#fff",
-            boxShadow: dragOver ? "0 12px 40px rgba(59,172,182,0.2)" : "var(--mh-shadow-lg)",
-          }}
+          className={`mh-fade-up mh-dropzone-glass relative mt-6 overflow-hidden ${dragOver ? "is-active" : ""}`}
         >
           {loggedIn ? (
             <input ref={ref} type="file" accept="image/*,video/*,audio/*,.html,.htm" multiple onChange={(e) => onPick(e.target.files)} className="absolute inset-0 z-10 cursor-pointer opacity-0" disabled={uploading} />
           ) : (
             <button type="button" onClick={requireLogin} className="absolute inset-0 z-10 cursor-pointer" aria-label="Sign in to upload" />
           )}
-          <div className="pointer-events-none px-6 py-14 text-center">
+          <div className="pointer-events-none px-6 py-16 text-center">
             {!loggedIn && (
               <div className="mb-3 flex justify-center">
                 <span className="mh-lock-badge">🔒 Sign in required to upload</span>
@@ -188,14 +188,18 @@ export default function HomePage() {
           </div>
         </div>
 
-        {error && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+        {error && (
+          <div className="mt-4 rounded-2xl border border-red-200/80 bg-red-50/80 px-4 py-3 text-sm text-red-700 backdrop-blur-md">
+            {error}
+          </div>
+        )}
 
         {items.length > 0 && (
           <div className="mt-10 space-y-3">
             <h2 className="text-sm font-semibold" style={{ color: "#1A2B3C" }}>Your links</h2>
             {items.map((item) => (
-              <div key={item.url} className="mh-card flex flex-col gap-3 p-3 sm:flex-row sm:items-center">
-                <div className="h-16 w-full shrink-0 overflow-hidden rounded-xl bg-slate-100 sm:w-20">
+              <div key={item.url} className="mh-glass-strong flex flex-col gap-3 p-3 sm:flex-row sm:items-center">
+                <div className="h-16 w-full shrink-0 overflow-hidden rounded-xl bg-white/50 sm:w-20">
                   {isImg(item.contentType) ? (
                     <img src={item.url} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
                   ) : isVid(item.contentType) ? (
@@ -206,15 +210,18 @@ export default function HomePage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{item.name}</p>
-                  <p className="truncate font-mono text-xs text-slate-400">{item.url}</p>
+                  <p className="truncate font-mono text-xs" style={{ color: "#5a6f82" }}>{item.url}</p>
                 </div>
-                <button type="button" onClick={() => copy(item.url)} className="mh-btn mh-btn-primary px-4 py-2 text-xs">{copied === item.url ? "Copied!" : "Copy URL"}</button>
+                <button type="button" onClick={() => copy(item.url)} className="mh-btn mh-btn-primary px-4 py-2 text-xs">
+                  {copied === item.url ? "Copied!" : "Copy URL"}
+                </button>
               </div>
             ))}
           </div>
         )}
 
-        <div className="mt-16 grid gap-5 sm:grid-cols-3">
+        {/* CSS Grid feature cards */}
+        <div className="mh-grid-features mt-16">
           {[
             { t: "Private by default", d: "Every upload is tied to your account. Others cannot see your library." },
             { t: "Folders & expiry", d: "Organize into folders and choose how long each file stays live." },
@@ -229,7 +236,7 @@ export default function HomePage() {
         </div>
       </main>
 
-      <footer className="border-t py-10 text-center text-xs" style={{ borderColor: "#dce8f0", color: "#5a6f82" }}>
+      <footer className="border-t border-white/40 py-10 text-center text-xs" style={{ color: "#5a6f82", background: "rgba(255,255,255,0.35)", backdropFilter: "blur(12px)" }}>
         Media Host · Login required for all uploads
       </footer>
     </div>
