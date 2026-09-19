@@ -58,7 +58,7 @@ function LoginForm() {
 
   return (
     <div className="mh-mesh flex min-h-screen flex-col">
-      <header className="mh-nav-glass sticky top-0 z-20 border-b border-[#dce8f0]">
+      <header className="mh-nav-glass sticky top-0 z-20">
         <div className="mx-auto flex h-14 max-w-lg items-center justify-between px-4">
           <Link href="/" className="flex items-center gap-2">
             <div
@@ -73,19 +73,22 @@ function LoginForm() {
         </div>
       </header>
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 py-12">
-        <div className="mh-fade-up mh-card p-8" style={{ borderRadius: 20 }}>
+        <div className="mh-fade-up mh-glass-strong p-8">
           <h1 className="text-2xl font-bold tracking-tight" style={{ color: "#1A2B3C", fontFamily: "var(--font-display), sans-serif" }}>
             {tab === "login" ? "Welcome back" : "Create your account"}
           </h1>
           <p className="mt-2 text-sm" style={{ color: "#5a6f82" }}>
             {tab === "login" ? "Sign in to your private media library." : "Free forever. Files stay private to your account."}
           </p>
-          <div className="mt-6 flex rounded-full border p-1" style={{ borderColor: "#dce8f0", background: "#F5F9FC" }}>
+          <div
+            className="mt-6 flex rounded-full p-1"
+            style={{ background: "rgba(245,249,252,0.8)", border: "1px solid rgba(15,76,129,0.1)" }}
+          >
             <button
               type="button"
               onClick={() => setTab("login")}
               className="flex-1 rounded-full py-2 text-sm font-semibold transition"
-              style={tab === "login" ? { background: "#fff", color: "#0F4C81", boxShadow: "0 2px 8px rgba(15,76,129,0.12)" } : { color: "#5a6f82" }}
+              style={tab === "login" ? { background: "rgba(255,255,255,0.95)", color: "#0F4C81", boxShadow: "0 4px 14px rgba(15,76,129,0.12)" } : { color: "#5a6f82" }}
             >
               Sign in
             </button>
@@ -93,7 +96,7 @@ function LoginForm() {
               type="button"
               onClick={() => setTab("register")}
               className="flex-1 rounded-full py-2 text-sm font-semibold transition"
-              style={tab === "register" ? { background: "#fff", color: "#0F4C81", boxShadow: "0 2px 8px rgba(15,76,129,0.12)" } : { color: "#5a6f82" }}
+              style={tab === "register" ? { background: "rgba(255,255,255,0.95)", color: "#0F4C81", boxShadow: "0 4px 14px rgba(15,76,129,0.12)" } : { color: "#5a6f82" }}
             >
               Register
             </button>
@@ -107,7 +110,7 @@ function LoginForm() {
               <label className="mb-1.5 block text-xs font-semibold" style={{ color: "#5a6f82" }}>Password</label>
               <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={tab === "register" ? "new-password" : "current-password"} className="mh-input" placeholder="••••••••" />
             </div>
-            {error && <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+            {error && <p className="rounded-xl border border-red-200 bg-red-50/90 px-3 py-2 text-sm text-red-700">{error}</p>}
             <button type="submit" disabled={loading} className="mh-btn mh-btn-primary h-12 w-full disabled:opacity-50">
               {loading ? "Please wait…" : tab === "register" ? "Create account" : "Sign in"}
             </button>
