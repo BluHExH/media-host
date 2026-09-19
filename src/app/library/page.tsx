@@ -1,1 +1,2 @@
-PLACEHOLDER_SEE_ARTIFACTS
+"use client";
+export { default } from "./LibraryClient";
