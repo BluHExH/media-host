@@ -1,23 +1,23 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { authFetch, hasSession, ensureSession, clearAuth } from "@/lib/client-auth";
+import { authFetch, clearAuth, hasSession, ensureSession } from "@/lib/client-auth";
 
-interface F {
+type F = {
   url: string;
   pathname: string;
+  size: number;
   contentType: string;
-  album: string;
-}
+  album?: string;
+};
 
 export default function GalleryPage() {
   const router = useRouter();
   const [files, setFiles] = useState<F[]>([]);
-  const [preview, setPreview] = useState<F | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [clearing, setClearing] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
 
   useEffect(() => {
     if (!hasSession()) {
@@ -36,133 +36,92 @@ export default function GalleryPage() {
         const d = await r.json();
         setFiles(d.files || []);
       } catch {
-        setError("Failed to load");
+        setError("Failed to load gallery");
       } finally {
         setLoading(false);
       }
     })();
   }, [router]);
 
-  const clearMyPublic = async (mode: "unpublish" | "delete") => {
-    const msg =
-      mode === "delete"
-        ? "Delete ALL your public gallery files from storage forever?"
-        : "Remove all items from your public gallery? (files stay in Library)";
-    if (!confirm(msg)) return;
-    setClearing(true);
-    try {
-      const r = await authFetch("/api/gallery/reset-public", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode }),
-      });
-      if (r.ok) setFiles([]);
-      else {
-        const d = await r.json().catch(() => ({}));
-        setError(d.error || "Failed");
-      }
-    } catch {
-      setError("Network error");
-    } finally {
-      setClearing(false);
-    }
+  const copy = (u: string) => {
+    navigator.clipboard.writeText(u);
+    setCopied(u);
+    setTimeout(() => setCopied(null), 2000);
   };
+
+  const del = async (url: string) => {
+    if (!confirm("Remove from public gallery?")) return;
+    const res = await authFetch("/api/delete", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ urls: [url] }),
+    });
+    if (res.ok) setFiles((p) => p.filter((f) => f.url !== url));
+  };
+
+  const isImg = (t: string) => t.startsWith("image/");
+  const nm = (f: F) => f.pathname.split("/").pop() || f.pathname;
 
   return (
     <div className="mh-mesh min-h-screen">
-      <header className="border-b border-slate-200 bg-white">
+      <header className="mh-nav-glass sticky top-0 z-20">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
           <div className="flex items-center gap-2">
             <Link
               href="/"
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-xs font-bold text-white"
+              className="flex h-8 w-8 items-center justify-center rounded-xl text-xs font-bold text-white"
+              style={{ background: "linear-gradient(135deg,#0F4C81,#3BACB6)" }}
             >
               MH
             </Link>
-            <span className="text-sm font-semibold">My public gallery</span>
+            <span className="text-sm font-semibold" style={{ color: "#1A2B3C" }}>My public gallery</span>
           </div>
-          <div className="flex items-center gap-2 text-sm">
-            <Link href="/library" className="text-slate-600 hover:underline">
-              Library
-            </Link>
-            <Link href="/profile" className="text-slate-600 hover:underline">
-              Profile
-            </Link>
+          <div className="flex items-center gap-3 text-sm">
+            <Link href="/library" style={{ color: "#0F4C81" }}>Library</Link>
+            <Link href="/profile" style={{ color: "#5a6f82" }}>Profile</Link>
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-4 py-8">
-        <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-sm text-slate-600">
-              Only <strong>your</strong> files marked public. Other users never see these here.
-            </p>
-            <p className="mt-1 text-xs text-slate-400">
-              Privacy: each account has its own public gallery — no shared global feed.
-            </p>
-          </div>
-          {files.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={clearing}
-                onClick={() => clearMyPublic("unpublish")}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-              >
-                Unpublish all
-              </button>
-              <button
-                type="button"
-                disabled={clearing}
-                onClick={() => clearMyPublic("delete")}
-                className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100"
-              >
-                Delete all public files
-              </button>
-            </div>
-          )}
-        </div>
+
+      <main className="mx-auto max-w-5xl px-4 py-10">
+        <p className="mb-6 text-sm" style={{ color: "#5a6f82" }}>
+          Only files you marked public appear here. Other users cannot see this page.
+        </p>
         {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
         {loading ? (
-          <p className="text-center text-slate-500">Loading…</p>
+          <p className="py-16 text-center text-sm" style={{ color: "#5a6f82" }}>Loading…</p>
         ) : files.length === 0 ? (
-          <p className="text-center text-slate-500">
-            Nothing in your public gallery. Mark files public from Library when uploading.
-          </p>
+          <div className="mh-glass-strong py-16 text-center">
+            <p className="text-sm" style={{ color: "#5a6f82" }}>No public files yet</p>
+            <Link href="/library" className="mh-btn mh-btn-primary mt-4 inline-flex px-5 py-2.5">Upload from Library</Link>
+          </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {files.map((f) => (
-              <button
-                key={f.url}
-                type="button"
-                onClick={() => setPreview(f)}
-                className="aspect-square overflow-hidden rounded-xl border border-slate-200 bg-white"
-              >
-                {f.contentType?.startsWith("image/") ? (
-                  <img src={f.url} alt="" className="h-full w-full object-cover" loading="lazy" />
-                ) : f.contentType?.startsWith("video/") ? (
-                  <video src={f.url} className="h-full w-full object-cover" muted />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-xs text-slate-400">File</div>
-                )}
-              </button>
+          <div className="mh-grid-media">
+            {files.map((file) => (
+              <div key={file.url} className="mh-media-card overflow-hidden">
+                <div className="aspect-video bg-white/40">
+                  {isImg(file.contentType) ? (
+                    <img src={file.url} alt="" className="h-full w-full object-cover" loading="lazy" />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-xs" style={{ color: "#5a6f82" }}>File</div>
+                  )}
+                </div>
+                <div className="space-y-2 p-3">
+                  <p className="truncate text-sm font-medium">{nm(file)}</p>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => copy(file.url)} className="mh-btn mh-btn-primary flex-1 py-1.5 text-xs">
+                      {copied === file.url ? "Copied" : "Copy URL"}
+                    </button>
+                    <button type="button" onClick={() => del(file.url)} className="rounded-full border border-red-200 bg-white/70 px-3 py-1.5 text-xs text-red-600">
+                      Del
+                    </button>
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
         )}
       </main>
-      {preview && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-          onClick={() => setPreview(null)}
-        >
-          {preview.contentType?.startsWith("image/") && (
-            <img src={preview.url} alt="" className="max-h-[85vh] rounded-lg" />
-          )}
-          {preview.contentType?.startsWith("video/") && (
-            <video src={preview.url} controls autoPlay className="max-h-[85vh] rounded-lg" />
-          )}
-        </div>
-      )}
     </div>
   );
 }
