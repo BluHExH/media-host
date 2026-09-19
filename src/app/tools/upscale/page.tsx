@@ -8,7 +8,6 @@ import { useSearchParams } from "next/navigation";
 const TK = "media_host_token";
 const FOLDER = "upscaled";
 
-/** Free canvas upscale + mild sharpen (no API key) */
 async function upscaleCanvas(source, scale) {
   const img = await createImageBitmap(source);
   const w = img.width;
@@ -64,7 +63,6 @@ async function upscaleCanvas(source, scale) {
   });
 }
 
-/** Try AI model from CDN; fall back to canvas */
 async function upscaleSmart(fileOrBlob, scale, onStatus) {
   try {
     onStatus?.("Loading free AI model…");
@@ -145,7 +143,9 @@ function UpscaleInner() {
       setStatus(`Auto-saved in folder “${FOLDER}”`);
       return d.url;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Save failed");
+      const msg = e instanceof Error ? e.message : "Save failed";
+      setError("Upscale OK but save failed: " + msg);
+      setStatus("Download PNG, then upload manually to folder upscaled");
       return null;
     } finally {
       setSaving(false);
@@ -276,8 +276,9 @@ function UpscaleInner() {
 
       <main className="mx-auto max-w-3xl space-y-6 px-4 py-8">
         <p className="text-sm text-slate-500">
-          <strong>100% free</strong> — runs in your browser, no API key. Result auto-saves to folder{" "}
+          <strong>100% free</strong> — browser only, no API key. After upscale, file is saved to library folder{" "}
           <code className="rounded bg-slate-200 px-1 text-xs">{FOLDER}</code>.
+          Open <Link href="/library" className="font-medium text-blue-600 underline">Library</Link> and click folder <strong>upscaled</strong>.
         </p>
 
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-4">
