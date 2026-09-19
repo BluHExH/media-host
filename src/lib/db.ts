@@ -49,7 +49,6 @@ export async function ensureSchema() {
     key TEXT PRIMARY KEY, count INTEGER NOT NULL DEFAULT 0, window_start TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
   await sql`CREATE TABLE IF NOT EXISTS app_meta (
     key TEXT PRIMARY KEY, value TEXT, updated_at TIMESTAMPTZ DEFAULT NOW())`;
-  // Force wipe public gallery for everyone (v2)
   const mig = await sql`SELECT value FROM app_meta WHERE key = 'privacy_wipe_v2' LIMIT 1`;
   if (!mig.length) {
     await sql`DELETE FROM media_meta WHERE is_public = true`;
@@ -188,7 +187,25 @@ export async function rotateRefreshToken(oldToken: string): Promise<{ userId: nu
 export async function purgeExpired() {
   try {
     const sql = getSql();
-    await sql`DELETE FROM media_meta WHERE expires_at IS NOT NULL AND expires_at < NOW()`;
+    const expired = await sql`
+      SELECT url FROM media_meta
+      WHERE expires_at IS NOT NULL AND expires_at < NOW()
+      LIMIT 200
+    `;
+    const urls = (expired as { url: string }[]).map((r) => r.url).filter(Boolean);
+    if (urls.length) {
+      try {
+        const { del } = await import("@vercel/blob");
+        for (let i = 0; i < urls.length; i += 50) {
+          await del(urls.slice(i, i + 50));
+        }
+      } catch (e) {
+        console.error("blob purge failed", e);
+      }
+      await sql`DELETE FROM media_meta WHERE expires_at IS NOT NULL AND expires_at < NOW()`;
+    }
     await sql`DELETE FROM refresh_tokens WHERE expires_at < NOW() OR revoked = true`;
-  } catch {}
+  } catch (e) {
+    console.error("purgeExpired", e);
+  }
 }
