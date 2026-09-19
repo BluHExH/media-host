@@ -13,6 +13,20 @@
   --mh-shadow-lg: 0 4px 6px rgba(15, 23, 42, 0.04), 0 20px 40px rgba(15, 23, 42, 0.08);
 }
 
+html.dark {
+  --mh-bg: #0b1220;
+  --mh-surface: #111827;
+  --mh-ink: #f1f5f9;
+  --mh-muted: #94a3b8;
+  --mh-line: #1e293b;
+  --mh-brand: #3b82f6;
+  --mh-brand-dark: #2563eb;
+  --mh-glow: rgba(59, 130, 246, 0.2);
+  --mh-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+  --mh-shadow-lg: 0 4px 6px rgba(0, 0, 0, 0.3), 0 20px 40px rgba(0, 0, 0, 0.4);
+  color-scheme: dark;
+}
+
 html {
   color-scheme: light;
   scroll-behavior: smooth;
@@ -41,6 +55,11 @@ a { color: inherit; text-decoration: none; }
   background-color: var(--mh-bg);
   background-image:
     radial-gradient(ellipse 80% 50% at 50% -20%, rgba(37, 99, 235, 0.14), transparent),
+    radial-gradient(ellipse 50% 30% at 100% 0%, rgba(99, 102, 241, 0.08), transparent);
+}
+html.dark .mh-mesh {
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59, 130, 246, 0.12), transparent),
     radial-gradient(ellipse 50% 30% at 100% 0%, rgba(99, 102, 241, 0.08), transparent);
 }
 
@@ -74,7 +93,7 @@ a { color: inherit; text-decoration: none; }
   height: 2.75rem;
   border-radius: 0.75rem;
   border: 1px solid var(--mh-line);
-  background: #fff;
+  background: var(--mh-surface);
   color: var(--mh-ink);
   padding: 0 0.875rem;
   font-size: 0.875rem;
@@ -106,6 +125,10 @@ a { color: inherit; text-decoration: none; }
   from { transform: rotateX(60deg) rotateZ(0deg); }
   to { transform: rotateX(60deg) rotateZ(360deg); }
 }
+@keyframes mh-toast-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
 .mh-fade-up { animation: mh-fade-up 0.45s ease both; }
 
@@ -130,6 +153,10 @@ a { color: inherit; text-decoration: none; }
   overflow: hidden;
   transform-style: preserve-3d;
   backface-visibility: hidden;
+}
+html.dark .mh-card3d {
+  border-color: rgba(255,255,255,0.1);
+  background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
 }
 .mh-card3d .ph {
   display: flex;
@@ -214,12 +241,14 @@ a { color: inherit; text-decoration: none; }
 
 .mh-media-card {
   position: relative;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 .mh-media-card:hover {
   border-color: #cbd5e1;
   box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+  transform: translateY(-2px);
 }
+html.dark .mh-media-card:hover { border-color: #334155; }
 .mh-media-card.is-selected {
   border-color: #2563eb !important;
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.3);
@@ -253,4 +282,70 @@ a { color: inherit; text-decoration: none; }
 .mh-bulk-bar {
   animation: mh-fade-up 0.25s ease both;
   backdrop-filter: blur(12px);
+}
+
+.mh-toast {
+  animation: mh-toast-in 0.25s ease both;
+  position: fixed;
+  bottom: 5.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 80;
+  max-width: 90vw;
+  border-radius: 0.75rem;
+  padding: 0.65rem 1rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  box-shadow: var(--mh-shadow-lg);
+  background: #0f172a;
+  color: #fff;
+}
+html.dark .mh-toast { background: #e2e8f0; color: #0f172a; }
+
+.mh-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  border-top: 1px solid var(--mh-line);
+  background: color-mix(in srgb, var(--mh-surface) 92%, transparent);
+  backdrop-filter: blur(12px);
+  padding: 0.35rem 0.5rem calc(0.35rem + env(safe-area-inset-bottom));
+}
+@media (min-width: 768px) {
+  .mh-bottom-nav { display: none; }
+}
+.mh-bottom-nav a {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.4rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--mh-muted);
+  border-radius: 0.5rem;
+}
+.mh-bottom-nav a.active { color: var(--mh-brand); background: var(--mh-glow); }
+
+.mh-progress {
+  height: 0.35rem;
+  border-radius: 999px;
+  background: var(--mh-line);
+  overflow: hidden;
+}
+.mh-progress > span {
+  display: block;
+  height: 100%;
+  background: var(--mh-brand);
+  transition: width 0.2s ease;
+  border-radius: 999px;
+}
+
+.pb-mobile-nav { padding-bottom: 4.5rem; }
+@media (min-width: 768px) {
+  .pb-mobile-nav { padding-bottom: 0; }
 }
