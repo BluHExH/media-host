@@ -126,32 +126,32 @@ export default function ProfilePage() {
   const maxY = Math.max(1, ...activity.map((a) => a.uploads + a.logins));
 
   if (loading) {
-    return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-500">Loading profile…</div>;
+    return <div className="mh-mesh flex min-h-screen items-center justify-center text-[#5a6f82]">Loading profile…</div>;
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="border-b border-slate-200 bg-white">
+    <div className="mh-mesh min-h-screen">
+      <header className="mh-nav-glass sticky top-0 z-20">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4">
           <div className="flex items-center gap-3">
-            <Link href="/" className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-xs font-bold text-white">MH</Link>
-            <span className="text-sm font-semibold">Profile</span>
+            <Link href="/" className="flex h-8 w-8 items-center justify-center rounded-xl text-xs font-bold text-white" style={{ background: "linear-gradient(135deg,#0F4C81,#3BACB6)" }}>MH</Link>
+            <span className="text-sm font-semibold" style={{ color: "#1A2B3C" }}>Profile</span>
           </div>
-          <div className="flex gap-2 text-sm">
-            <Link href="/library" className="text-slate-600 hover:text-slate-900">Library</Link>
-            <Link href="/" className="text-slate-600 hover:text-slate-900">Home</Link>
+          <div className="flex gap-3 text-sm">
+            <Link href="/library" style={{ color: "#0F4C81" }}>Library</Link>
+            <Link href="/" style={{ color: "#5a6f82" }}>Home</Link>
           </div>
         </div>
       </header>
       <main className="mx-auto max-w-3xl space-y-6 px-4 py-10">
-        {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-        {ok && <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{ok}</p>}
+        {error && <p className="rounded-xl border border-red-200 bg-red-50/90 px-3 py-2 text-sm text-red-700">{error}</p>}
+        {ok && <p className="rounded-xl border border-emerald-200 bg-emerald-50/90 px-3 py-2 text-sm text-emerald-800">{ok}</p>}
         {user && (
           <>
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mh-glass-strong p-6">
               <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
                 <button type="button" onClick={() => avatarRef.current?.click()} className="relative group" disabled={avatarBusy}>
-                  <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-blue-100 text-2xl font-bold text-blue-700 ring-2 ring-white shadow">
+                  <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full text-2xl font-bold text-white ring-2 ring-white shadow-lg" style={{ background: "linear-gradient(135deg,#0F4C81,#3BACB6)" }}>
                     {user.avatarUrl ? (
                       <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" />
                     ) : (
@@ -164,52 +164,50 @@ export default function ProfilePage() {
                 </button>
                 <input ref={avatarRef} type="file" accept="image/*" className="hidden" onChange={(e) => onAvatar(e.target.files)} />
                 <div>
-                  <h1 className="text-xl font-bold text-slate-900">{user.displayName || user.username}</h1>
-                  <p className="text-sm text-slate-500">@{user.username}</p>
+                  <h1 className="text-xl font-bold" style={{ color: "#1A2B3C" }}>{user.displayName || user.username}</h1>
+                  <p className="text-sm" style={{ color: "#5a6f82" }}>@{user.username}</p>
                 </div>
               </div>
-              <form onSubmit={saveProfile} className="mt-6 space-y-4 border-t border-slate-100 pt-6">
+              <form onSubmit={saveProfile} className="mt-6 space-y-4 border-t border-white/40 pt-6">
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Display name</label>
-                  <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500" />
+                  <label className="mb-1 block text-xs font-medium" style={{ color: "#5a6f82" }}>Display name</label>
+                  <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="mh-input" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Username</label>
-                  <input value={username} onChange={(e) => setUsername(e.target.value)} className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500" />
+                  <label className="mb-1 block text-xs font-medium" style={{ color: "#5a6f82" }}>Username</label>
+                  <input value={username} onChange={(e) => setUsername(e.target.value)} className="mh-input" />
                 </div>
-                <button type="submit" disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
+                <button type="submit" disabled={saving} className="mh-btn mh-btn-primary px-5 py-2.5 disabled:opacity-50">
                   {saving ? "Saving…" : "Save profile"}
                 </button>
               </form>
               <dl className="mt-6 grid gap-3 text-sm sm:grid-cols-2">
-                <div className="rounded-xl bg-slate-50 px-4 py-3">
-                  <dt className="text-xs text-slate-400">Account created</dt>
-                  <dd className="mt-0.5 font-medium text-slate-800">{user.createdAt ? new Date(user.createdAt).toLocaleString() : "—"}</dd>
-                </div>
-                <div className="rounded-xl bg-slate-50 px-4 py-3">
-                  <dt className="text-xs text-slate-400">Last login</dt>
-                  <dd className="mt-0.5 font-medium text-slate-800">{user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : "—"}</dd>
-                </div>
-                <div className="rounded-xl bg-slate-50 px-4 py-3">
-                  <dt className="text-xs text-slate-400">Files</dt>
-                  <dd className="mt-0.5 font-medium text-slate-800">{stats.files}</dd>
-                </div>
-                <div className="rounded-xl bg-slate-50 px-4 py-3">
-                  <dt className="text-xs text-slate-400">Storage used</dt>
-                  <dd className="mt-0.5 font-medium text-slate-800">{fmt(stats.totalBytes)}</dd>
-                </div>
+                {["Account created", "Last login", "Files", "Storage used"].map((label, i) => {
+                  const vals = [
+                    user.createdAt ? new Date(user.createdAt).toLocaleString() : "—",
+                    user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : "—",
+                    String(stats.files),
+                    fmt(stats.totalBytes),
+                  ];
+                  return (
+                    <div key={label} className="rounded-2xl bg-white/50 px-4 py-3 backdrop-blur-sm">
+                      <dt className="text-xs" style={{ color: "#5a6f82" }}>{label}</dt>
+                      <dd className="mt-0.5 font-medium" style={{ color: "#1A2B3C" }}>{vals[i]}</dd>
+                    </div>
+                  );
+                })}
               </dl>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mh-glass-strong p-6">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-slate-900">Activity (last 14 days)</h2>
-                <div className="flex gap-3 text-[10px] text-slate-500">
-                  <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-blue-500" /> Uploads</span>
+                <h2 className="text-sm font-semibold" style={{ color: "#1A2B3C" }}>Activity (last 14 days)</h2>
+                <div className="flex gap-3 text-[10px]" style={{ color: "#5a6f82" }}>
+                  <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm" style={{ background: "#0F4C81" }} /> Uploads</span>
                   <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-slate-300" /> Logins</span>
                 </div>
               </div>
               {activity.length === 0 || activity.every((a) => !a.uploads && !a.logins) ? (
-                <p className="mt-8 text-center text-sm text-slate-400">No activity yet — upload a file or sign in again to see the graph.</p>
+                <p className="mt-8 text-center text-sm" style={{ color: "#5a6f82" }}>No activity yet — upload a file or sign in again to see the graph.</p>
               ) : (
                 <div className="mt-6 flex h-44 items-end gap-1.5">
                   {activity.map((a) => {
@@ -218,19 +216,19 @@ export default function ProfilePage() {
                     return (
                       <div key={a.day} className="flex flex-1 flex-col items-center gap-1" title={`${a.day}: ${a.uploads} uploads, ${a.logins} logins`}>
                         <div className="flex h-32 w-full flex-col justify-end gap-0.5">
-                          <div className="w-full rounded-t bg-blue-500" style={{ height: upPx }} />
+                          <div className="w-full rounded-t" style={{ height: upPx, background: "#0F4C81" }} />
                           <div className="w-full rounded-b bg-slate-300" style={{ height: logPx }} />
                         </div>
-                        <span className="text-[9px] text-slate-400">{a.day.slice(5)}</span>
+                        <span className="text-[9px]" style={{ color: "#5a6f82" }}>{a.day.slice(5)}</span>
                       </div>
                     );
                   })}
                 </div>
               )}
             </div>
-            <div className="rounded-2xl border border-red-200 bg-red-50/50 p-6">
+            <div className="mh-glass p-6" style={{ borderColor: "rgba(248,113,113,0.4)" }}>
               <h2 className="text-sm font-semibold text-red-800">Danger zone</h2>
-              <button type="button" onClick={deleteAccount} disabled={deleting} className="mt-4 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700">
+              <button type="button" onClick={deleteAccount} disabled={deleting} className="mt-4 rounded-full border border-red-300 bg-white/80 px-4 py-2 text-sm font-medium text-red-700">
                 {deleting ? "Deleting…" : "Delete my account"}
               </button>
             </div>
