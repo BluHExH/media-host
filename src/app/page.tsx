@@ -106,7 +106,7 @@ export default function HomePage() {
   const isVid = (t: string) => t.startsWith("video/");
 
   return (
-    <div className="mh-mesh min-h-screen">
+    <div className="mh-home-bg min-h-screen">
       <header className="mh-nav-glass sticky top-0 z-30">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           <Link href="/" className="flex items-center gap-2.5">
@@ -220,7 +220,6 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* CSS Grid feature cards */}
         <div className="mh-grid-features mt-16">
           {[
             { t: "Private by default", d: "Every upload is tied to your account. Others cannot see your library." },
