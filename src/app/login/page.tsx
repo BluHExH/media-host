@@ -6,6 +6,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 const TK = "media_host_token";
 const RK = "media_host_refresh";
 
+function safeNext(raw: string | null): string {
+  if (!raw) return "/library";
+  // only same-origin relative paths; block //evil.com and javascript:
+  if (!raw.startsWith("/") || raw.startsWith("//") || raw.includes(":")) return "/library";
+  return raw;
+}
+
 function LoginForm() {
   const router = useRouter();
   const search = useSearchParams();
@@ -28,9 +35,9 @@ function LoginForm() {
       setError("Username and password required");
       return;
     }
-    if (tab === "register" && password.length < 6) {
+    if (tab === "register" && password.length < 8) {
       setLoading(false);
-      setError("Password must be at least 6 characters");
+      setError("Password must be at least 8 characters");
       return;
     }
     const endpoint = tab === "register" ? "/api/auth/register" : "/api/auth/login";
@@ -52,8 +59,7 @@ function LoginForm() {
     localStorage.setItem(TK, data.token);
     if (data.refreshToken) localStorage.setItem(RK, data.refreshToken);
     localStorage.removeItem("media_host_pass");
-    const next = search.get("next");
-    router.push(next && next.startsWith("/") ? next : "/library");
+    router.push(safeNext(search.get("next")));
   };
 
   return (
@@ -108,7 +114,7 @@ function LoginForm() {
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-semibold" style={{ color: "#5a6f82" }}>Password</label>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={tab === "register" ? "new-password" : "current-password"} className="mh-input" placeholder="••••••••" />
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={tab === "register" ? "new-password" : "current-password"} className="mh-input" placeholder="min 8 characters" />
             </div>
             {error && <p className="rounded-xl border border-red-200 bg-red-50/90 px-3 py-2 text-sm text-red-700">{error}</p>}
             <button type="submit" disabled={loading} className="mh-btn mh-btn-primary h-12 w-full disabled:opacity-50">
@@ -116,7 +122,7 @@ function LoginForm() {
             </button>
           </form>
         </div>
-        <p className="mt-6 text-center text-xs" style={{ color: "#5a6f82" }}>Session lasts 30 days · passwords are hashed</p>
+        <p className="mt-6 text-center text-xs" style={{ color: "#5a6f82" }}>Session lasts 30 days · passwords are hashed (PBKDF2)</p>
       </div>
     </div>
   );

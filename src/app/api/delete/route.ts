@@ -4,6 +4,19 @@ import { getSql, parseToken } from "@/lib/db";
 
 export const runtime = "edge";
 
+function isAllowedBlobUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:") return false;
+    return (
+      u.hostname.endsWith(".public.blob.vercel-storage.com") ||
+      u.hostname.endsWith(".blob.vercel-storage.com")
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function DELETE(request: NextRequest) {
   try {
     const token = request.headers.get("x-auth-token") || "";
@@ -13,12 +26,15 @@ export async function DELETE(request: NextRequest) {
     }
 
     const body = await request.json();
-    const urls: string[] = Array.isArray(body.urls)
-      ? body.urls.slice(0, 500)
+    const raw: string[] = Array.isArray(body.urls)
+      ? body.urls.slice(0, 200)
       : body.url
         ? [body.url]
         : [];
-    if (!urls.length) return NextResponse.json({ error: "URL required" }, { status: 400 });
+    const urls = raw.filter((u) => typeof u === "string" && isAllowedBlobUrl(u));
+    if (!urls.length) {
+      return NextResponse.json({ error: "URL required" }, { status: 400 });
+    }
 
     const sql = getSql();
     const checks = await Promise.all(
