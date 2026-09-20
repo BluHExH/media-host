@@ -4,75 +4,121 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { authFetch, hasSession } from "@/lib/client-auth";
-
-function canvasFromImage(img) {
-  const c = document.createElement("canvas");
-  c.width = img.naturalWidth || img.width;
-  c.height = img.naturalHeight || img.height;
-  const ctx = c.getContext("2d");
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(img, 0, 0);
-  return c;
-}
+import { authFetch, hasSession, ensureSession } from "@/lib/client-auth";
 
 function loadImage(src) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => resolve(img);
-    img.onerror = reject;
+    img.onerror = () => reject(new Error("Could not load image"));
     img.src = src;
   });
 }
 
-async function toPngBlob(canvas) {
+function toPngBlob(canvas) {
   return new Promise((resolve, reject) => {
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Export failed"))), "image/png", 1);
   });
 }
 
+/** High-quality multi-step upscale (better than single stretch). */
+function canvasUpscale(img, scale) {
+  const srcW = img.naturalWidth || img.width;
+  const srcH = img.naturalHeight || img.height;
+  const targetW = Math.round(srcW * scale);
+  const targetH = Math.round(srcH * scale);
+
+  // Progressive 2× steps for sharper result
+  let cur = document.createElement("canvas");
+  cur.width = srcW;
+  cur.height = srcH;
+  let ctx = cur.getContext("2d");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, 0, 0);
+
+  let w = srcW;
+  let h = srcH;
+  while (w * 2 <= targetW + 1 && h * 2 <= targetH + 1 && (w < targetW || h < targetH)) {
+    const nextW = Math.min(targetW, w * 2);
+    const nextH = Math.min(targetH, h * 2);
+    const next = document.createElement("canvas");
+    next.width = nextW;
+    next.height = nextH;
+    const nctx = next.getContext("2d");
+    nctx.imageSmoothingEnabled = true;
+    nctx.imageSmoothingQuality = "high";
+    nctx.drawImage(cur, 0, 0, nextW, nextH);
+    cur = next;
+    w = nextW;
+    h = nextH;
+  }
+
+  if (w !== targetW || h !== targetH) {
+    const final = document.createElement("canvas");
+    final.width = targetW;
+    final.height = targetH;
+    const fctx = final.getContext("2d");
+    fctx.imageSmoothingEnabled = true;
+    fctx.imageSmoothingQuality = "high";
+    fctx.drawImage(cur, 0, 0, targetW, targetH);
+    return final;
+  }
+  return cur;
+}
+
 async function upscaleSmart(fileOrBlob, scale, onStatus) {
+  const src =
+    typeof fileOrBlob === "string" ? fileOrBlob : URL.createObjectURL(fileOrBlob);
+  const img = await loadImage(src);
+  const srcW = img.naturalWidth || img.width;
+  const srcH = img.naturalHeight || img.height;
+
+  // Try free AI model first (UpscalerJS)
   try {
-    onStatus?.("Loading free AI model…");
+    onStatus?.("Loading AI model (browser)…");
     const upscalerMod = await import(
-      /* webpackIgnore: true */ "https://cdn.jsdelivr.net/npm/upscaler@0.12.1/+esm"
+      /* webpackIgnore: true */ "https://cdn.jsdelivr.net/npm/upscaler@1.0.0-beta.19/+esm"
     );
     const Upscaler = upscalerMod.default || upscalerMod.Upscaler || upscalerMod;
     const upscaler = new Upscaler();
-    onStatus?.(`Upscaling ${scale}×…");
-    const src = typeof fileOrBlob === "string" ? fileOrBlob : URL.createObjectURL(fileOrBlob);
-    const tensorOrCanvas = await upscaler.upscale(src, { output: "canvas", scale });
-    const canvas = tensorOrCanvas instanceof HTMLCanvasElement
-      ? tensorOrCanvas
-      : (() => {
-          const c = document.createElement("canvas");
-          // fallback if image bitmap
-          return tensorOrCanvas;
-        })();
-    if (canvas instanceof HTMLCanvasElement) {
-      return await toPngBlob(canvas);
+    onStatus?.(`AI upscaling ${scale}× (${srcW}×${srcH})…`);
+    const out = await upscaler.upscale(src, { output: "canvas", scale });
+    if (out instanceof HTMLCanvasElement && out.width >= srcW * scale * 0.9) {
+      const blob = await toPngBlob(out);
+      return {
+        blob,
+        width: out.width,
+        height: out.height,
+        srcW,
+        srcH,
+        method: "ai",
+      };
     }
-    // If returned as image URL / img
-    if (typeof canvas === "string") {
-      const img = await loadImage(canvas);
-      return await toPngBlob(canvasFromImage(img));
-    }
-    throw new Error("Unexpected upscaler output");
-  } catch (e) {
-    onStatus?.("AI model unavailable — using high-quality canvas upscale…");
-    const src = typeof fileOrBlob === "string" ? fileOrBlob : URL.createObjectURL(fileOrBlob);
-    const img = await loadImage(src);
-    const c = document.createElement("canvas");
-    c.width = (img.naturalWidth || img.width) * scale;
-    c.height = (img.naturalHeight || img.height) * scale;
-    const ctx = c.getContext("2d");
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(img, 0, 0, c.width, c.height);
-    return await toPngBlob(c);
+  } catch {
+    /* fall through to canvas */
   }
+
+  onStatus?.(`High-quality ${scale}× upscale (${srcW}×${srcH} → ${srcW * scale}×${srcH * scale})…`);
+  const canvas = canvasUpscale(img, scale);
+  const blob = await toPngBlob(canvas);
+  return {
+    blob,
+    width: canvas.width,
+    height: canvas.height,
+    srcW,
+    srcH,
+    method: "hq",
+  };
+}
+
+function sanitizeName(name) {
+  return String(name || "image")
+    .replace(/\.[^.]+$/, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 80) || "image";
 }
 
 function UpscaleInner() {
@@ -87,63 +133,92 @@ function UpscaleInner() {
   const [scale, setScale] = useState(2);
   const [fileName, setFileName] = useState("image-2x.png");
   const [savedUrl, setSavedUrl] = useState("");
+  const [dims, setDims] = useState(null);
+  const loadedUrlRef = useRef("");
 
-  const processFile = useCallback(async (file) => {
-    if (!file) return;
-    setError("");
-    setBusy(true);
-    setSavedUrl("");
-    setResult(null);
-    setResultBlob(null);
-    const origUrl = URL.createObjectURL(file);
-    setOriginal(origUrl);
-    setFileName((file.name || "image").replace(/\.[^.]+$/, "") + `-${scale}x.png`);
-    try {
-      const blob = await upscaleSmart(file, scale, setStatus);
-      const url = URL.createObjectURL(blob);
-      setResult(url);
-      setResultBlob(blob);
-      setStatus("Done — saving to library…");
-      if (hasSession()) {
+  const processFile = useCallback(
+    async (file) => {
+      if (!file) return;
+      setError("");
+      setBusy(true);
+      setSavedUrl("");
+      setResult(null);
+      setResultBlob(null);
+      setDims(null);
+
+      const outName = `${sanitizeName(file.name)}-${scale}x.png`;
+      setFileName(outName);
+
+      const origUrl = URL.createObjectURL(file);
+      setOriginal(origUrl);
+
+      try {
+        const { blob, width, height, srcW, srcH, method } = await upscaleSmart(
+          file,
+          scale,
+          setStatus
+        );
+        const url = URL.createObjectURL(blob);
+        setResult(url);
+        setResultBlob(blob);
+        setDims({ srcW, srcH, width, height, method });
+
+        // Auto-save to library
+        setStatus("Saving to library…");
+        await ensureSession();
+        if (!hasSession()) {
+          setStatus(`Upscale done (${srcW}×${srcH} → ${width}×${height}). Sign in to save.`);
+          return;
+        }
+
         const fd = new FormData();
-        fd.append("file", new File([blob], fileName, { type: "image/png" }));
+        fd.append("file", new File([blob], outName, { type: "image/png" }));
         fd.append("album", "upscaled");
         fd.append("expiry", "never");
+
         const res = await authFetch("/api/upload", { method: "POST", body: fd });
-        if (res.ok) {
-          const d = await res.json();
-          setSavedUrl(d.url || "");
-          setStatus("Saved to folder: upscaled");
+        const data = await res.json().catch(() => ({}));
+
+        if (res.ok && data.url) {
+          setSavedUrl(data.url);
+          setStatus(
+            `Saved to folder “upscaled” · ${srcW}×${srcH} → ${width}×${height} (${method === "ai" ? "AI" : "HQ"})`
+          );
         } else {
-          setStatus("Processed — save failed (still can download)");
+          const why = data.error || `HTTP ${res.status}`;
+          setError(`Upscale OK but save failed: ${why}`);
+          setStatus(`Ready to download (${width}×${height}). Save failed — try again after refresh.`);
         }
-      } else {
-        setStatus("Processed — sign in to auto-save");
+      } catch (e) {
+        setError(e?.message || "Upscale failed");
+        setStatus("");
+      } finally {
+        setBusy(false);
       }
-    } catch (e) {
-      setError(e?.message || "Upscale failed");
-      setStatus("");
-    } finally {
-      setBusy(false);
-    }
-  }, [scale, fileName]);
+    },
+    [scale]
+  );
 
   useEffect(() => {
     const u = searchParams.get("url");
-    if (!u) return;
+    if (!u || loadedUrlRef.current === u) return;
+    loadedUrlRef.current = u;
     (async () => {
       try {
         setStatus("Loading image…");
+        setBusy(true);
         const res = await fetch(u);
+        if (!res.ok) throw new Error("Fetch failed");
         const blob = await res.blob();
-        const name = u.split("/").pop() || "image.png";
+        const name = decodeURIComponent(u.split("/").pop() || "image.png");
         const file = new File([blob], name, { type: blob.type || "image/png" });
         await processFile(file);
       } catch {
         setError("Could not load image from URL");
+        setBusy(false);
       }
     })();
-  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [searchParams, processFile]);
 
   const onPick = (list) => {
     if (list?.[0]) processFile(list[0]);
@@ -157,20 +232,54 @@ function UpscaleInner() {
     a.click();
   };
 
+  const retrySave = async () => {
+    if (!resultBlob) return;
+    setError("");
+    setStatus("Saving…");
+    await ensureSession();
+    if (!hasSession()) {
+      setError("Sign in required to save");
+      return;
+    }
+    const fd = new FormData();
+    fd.append("file", new File([resultBlob], fileName, { type: "image/png" }));
+    fd.append("album", "upscaled");
+    fd.append("expiry", "never");
+    const res = await authFetch("/api/upload", { method: "POST", body: fd });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.url) {
+      setSavedUrl(data.url);
+      setStatus("Saved to folder: upscaled");
+      setError("");
+    } else {
+      setError(`Save failed: ${data.error || res.status}`);
+    }
+  };
+
   return (
     <div className="min-h-screen mh-mesh">
       <header className="mh-nav-glass sticky top-0 z-20">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4">
           <div className="flex items-center gap-3">
-            <Link href="/" className="flex h-8 w-8 items-center justify-center rounded-xl text-xs font-bold text-white" style={{ background: "linear-gradient(135deg,#0F4C81,#3BACB6)" }}>
+            <Link
+              href="/"
+              className="flex h-8 w-8 items-center justify-center rounded-xl text-xs font-bold text-white"
+              style={{ background: "linear-gradient(135deg,#0F4C81,#3BACB6)" }}
+            >
               MH
             </Link>
             <span className="text-sm font-semibold" style={{ color: "#1A2B3C" }}>Upscale</span>
           </div>
           <div className="flex gap-2 text-sm">
-            <Link href="/library" className="rounded-full px-2.5 py-1 hover:bg-white/50" style={{ color: "#5a6f82" }}>Library</Link>
-            <Link href="/tools/remove-bg" className="rounded-full px-2.5 py-1 hover:bg-white/50" style={{ color: "#0F4C81" }}>Remove BG</Link>
-            <Link href="/" className="rounded-full px-2.5 py-1 hover:bg-white/50" style={{ color: "#5a6f82" }}>Home</Link>
+            <Link href="/library" className="rounded-full px-2.5 py-1 hover:bg-white/50" style={{ color: "#5a6f82" }}>
+              Library
+            </Link>
+            <Link href="/tools/remove-bg" className="rounded-full px-2.5 py-1 hover:bg-white/50" style={{ color: "#0F4C81" }}>
+              Remove BG
+            </Link>
+            <Link href="/" className="rounded-full px-2.5 py-1 hover:bg-white/50" style={{ color: "#5a6f82" }}>
+              Home
+            </Link>
           </div>
         </div>
       </header>
@@ -179,6 +288,7 @@ function UpscaleInner() {
         <p className="text-sm" style={{ color: "#5a6f82" }}>
           Free browser upscale. Result auto-saves to folder{" "}
           <code className="rounded bg-white/60 px-1 text-xs">upscaled</code>.
+          Compare pixel sizes below — both previews fit the same card width, so look at the numbers.
         </p>
 
         <div className="mh-glass-strong flex flex-wrap items-center gap-3 p-4">
@@ -190,9 +300,15 @@ function UpscaleInner() {
               disabled={busy}
               onClick={() => setScale(s)}
               className="rounded-full px-4 py-1.5 text-xs font-semibold transition"
-              style={scale === s
-                ? { background: "linear-gradient(135deg,#0F4C81,#3BACB6)", color: "#fff" }
-                : { background: "rgba(255,255,255,0.6)", color: "#1A2B3C", border: "1px solid rgba(15,76,129,0.15)" }}
+              style={
+                scale === s
+                  ? { background: "linear-gradient(135deg,#0F4C81,#3BACB6)", color: "#fff" }
+                  : {
+                      background: "rgba(255,255,255,0.6)",
+                      color: "#1A2B3C",
+                      border: "1px solid rgba(15,76,129,0.15)",
+                    }
+              }
             >
               {s}×
             </button>
@@ -202,7 +318,10 @@ function UpscaleInner() {
         <div
           className="mh-dropzone-glass relative py-14 text-center"
           onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => { e.preventDefault(); onPick(e.dataTransfer.files); }}
+          onDrop={(e) => {
+            e.preventDefault();
+            onPick(e.dataTransfer.files);
+          }}
         >
           <input
             ref={inputRef}
@@ -218,11 +337,27 @@ function UpscaleInner() {
           <p className="mt-1 text-xs" style={{ color: "#5a6f82" }}>Runs in your browser · free</p>
         </div>
 
-        {status && !busy && <p className="text-sm" style={{ color: "#0F4C81" }}>{status}</p>}
+        {status && !busy && (
+          <p className="text-sm" style={{ color: "#0F4C81" }}>
+            {status}
+          </p>
+        )}
         {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && resultBlob && (
+          <button type="button" onClick={retrySave} className="mh-btn mh-btn-outline px-4 py-2 text-xs">
+            Retry save to library
+          </button>
+        )}
         {savedUrl && (
           <p className="text-sm" style={{ color: "#0F4C81" }}>
-            Saved: <a href={savedUrl} className="underline break-all" target="_blank" rel="noreferrer">{savedUrl}</a>
+            Saved:{" "}
+            <a href={savedUrl} className="underline break-all" target="_blank" rel="noreferrer">
+              {savedUrl}
+            </a>
+            {" · "}
+            <Link href="/library" className="underline">
+              Open library
+            </Link>
           </p>
         )}
 
@@ -230,16 +365,38 @@ function UpscaleInner() {
           <div className="grid gap-4 sm:grid-cols-2">
             {original && (
               <div className="mh-glass-strong p-3">
-                <p className="mb-2 text-xs font-medium" style={{ color: "#5a6f82" }}>Original</p>
+                <p className="mb-2 text-xs font-medium" style={{ color: "#5a6f82" }}>
+                  Original{dims ? ` · ${dims.srcW}×${dims.srcH}px` : ""}
+                </p>
                 <img src={original} alt="" className="w-full rounded-xl" />
               </div>
             )}
             {result && (
               <div className="mh-glass-strong p-3">
-                <p className="mb-2 text-xs font-medium" style={{ color: "#5a6f82" }}>Upscaled {scale}×</p>
-                <img src={result} alt="" className="w-full rounded-xl" />
-                <button type="button" onClick={download} className="mh-btn mh-btn-primary mt-3 w-full py-2.5 text-sm">
-                  Download PNG
+                <p className="mb-2 text-xs font-medium" style={{ color: "#5a6f82" }}>
+                  Upscaled {scale}×
+                  {dims ? ` · ${dims.width}×${dims.height}px` : ""}
+                  {dims?.method === "ai" ? " · AI" : dims ? " · HQ" : ""}
+                </p>
+                {/* Scrollable so you can see actual pixel density difference */}
+                <div className="max-h-80 overflow-auto rounded-xl bg-white/40">
+                  <img
+                    src={result}
+                    alt=""
+                    style={{
+                      maxWidth: "none",
+                      width: dims ? `${Math.min(dims.width, 1200)}px` : "100%",
+                      height: "auto",
+                      imageRendering: "auto",
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={download}
+                  className="mh-btn mh-btn-primary mt-3 w-full py-2.5 text-sm"
+                >
+                  Download PNG ({dims ? `${dims.width}×${dims.height}` : scale + "×"})
                 </button>
               </div>
             )}
@@ -252,7 +409,11 @@ function UpscaleInner() {
 
 export default function UpscalePage() {
   return (
-    <Suspense fallback={<div className="mh-mesh flex min-h-screen items-center justify-center text-[#5a6f82]">Loading…</div>}>
+    <Suspense
+      fallback={
+        <div className="mh-mesh flex min-h-screen items-center justify-center text-[#5a6f82]">Loading…</div>
+      }
+    >
       <UpscaleInner />
     </Suspense>
   );
