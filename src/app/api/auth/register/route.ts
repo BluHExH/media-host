@@ -17,7 +17,9 @@ export async function POST(request: NextRequest) {
   try {
     const ip = getClientIp(request);
     const rl = await checkRateLimit(`register:${ip}`, 5, 3600);
-    if (!rl.ok) return NextResponse.json({ error: "Too many registrations. Try later." }, { status: 429 });
+    if (!rl.ok) {
+      return NextResponse.json({ error: "Too many registrations. Try later." }, { status: 429 });
+    }
     await ensureSchema();
     const body = await request.json();
     const username = String(body.username || "")
@@ -26,15 +28,21 @@ export async function POST(request: NextRequest) {
       .replace(/[^a-z0-9_]/g, "")
       .slice(0, 32);
     const password = String(body.password || "");
-    const displayName = String(body.displayName || username).trim().slice(0, 64) || username;
-    const email = body.email ? String(body.email).trim().toLowerCase().slice(0, 120) : null;
+    const displayName =
+      String(body.displayName || username).trim().slice(0, 64) || username;
+    const email = body.email
+      ? String(body.email).trim().toLowerCase().slice(0, 120)
+      : null;
     const ua = getUserAgent(request);
 
     if (username.length < 3) {
       return NextResponse.json({ error: "Username min 3 characters" }, { status: 400 });
     }
-    if (password.length < 6) {
-      return NextResponse.json({ error: "Password min 6 characters" }, { status: 400 });
+    if (password.length < 8) {
+      return NextResponse.json({ error: "Password min 8 characters" }, { status: 400 });
+    }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ error: "Invalid email" }, { status: 400 });
     }
 
     const sql = getSql();

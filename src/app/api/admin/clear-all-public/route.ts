@@ -6,10 +6,8 @@ export const runtime = "edge";
 export async function POST(request: NextRequest) {
   try {
     const secret = request.headers.get("x-admin-secret") || "";
-    const expected =
-      process.env.ADMIN_SECRET ||
-      process.env.BLOB_READ_WRITE_TOKEN?.slice(-16) ||
-      "";
+    const expected = process.env.ADMIN_SECRET || "";
+    // Never fall back to blob token — require explicit ADMIN_SECRET
     if (!expected || secret !== expected) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
