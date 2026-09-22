@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getSql,
   ensureSchema,
-  hashPassword,
   checkRateLimit,
   getClientIp,
+  parseResetToken,
+  hashPassword,
   logAuthEvent,
   getUserAgent,
 } from "@/lib/db";
@@ -24,11 +25,11 @@ export async function POST(request: NextRequest) {
 
     await ensureSchema();
     const body = await request.json();
-    const token = String(body.token || "").trim();
+    const resetToken = String(body.resetToken || "");
     const password = String(body.password || "");
 
-    if (!token || token.length < 20) {
-      return NextResponse.json({ error: "Invalid or missing token" }, { status: 400 });
+    if (!resetToken) {
+      return NextResponse.json({ error: "Reset token required" }, { status: 400 });
     }
     if (password.length < 8) {
       return NextResponse.json(
@@ -37,59 +38,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const sql = getSql();
-    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token TEXT`;
-    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_expires TIMESTAMPTZ`;
-
-    const rows = await sql`
-      SELECT id, username, reset_expires FROM users
-      WHERE reset_token = ${token}
-      LIMIT 1
-    `;
-
-    if (!rows.length) {
+    const parsed = await parseResetToken(resetToken);
+    if (!parsed) {
       return NextResponse.json(
-        { error: "Invalid or expired reset link" },
-        { status: 400 }
-      );
-    }
-
-    const user = rows[0] as {
-      id: number;
-      username: string;
-      reset_expires: string | null;
-    };
-
-    if (!user.reset_expires || new Date(user.reset_expires).getTime() < Date.now()) {
-      await sql`UPDATE users SET reset_token = NULL, reset_expires = NULL WHERE id = ${user.id}`;
-      return NextResponse.json(
-        { error: "Reset link expired. Request a new one." },
+        { error: "Reset link expired or invalid. Request a new one." },
         { status: 400 }
       );
     }
 
     const password_hash = await hashPassword(password);
-    await sql`
-      UPDATE users
-      SET password_hash = ${password_hash},
-          reset_token = NULL,
-          reset_expires = NULL
-      WHERE id = ${user.id}
-    `;
+    const sql = getSql();
+    await sql`UPDATE users SET password_hash = ${password_hash} WHERE id = ${parsed.userId}`;
 
-    // Revoke refresh tokens for safety
+    // Invalidate all refresh sessions for security
     try {
-      await sql`UPDATE refresh_tokens SET revoked = true WHERE user_id = ${user.id}`;
+      await sql`DELETE FROM refresh_tokens WHERE user_id = ${parsed.userId}`;
     } catch {
-      /* table may differ */
+      /* ignore */
     }
 
     await logAuthEvent({
-      userId: user.id,
-      username: user.username,
+      userId: parsed.userId,
+      username: parsed.username,
       ip,
       userAgent: getUserAgent(request),
-      action: "password_reset",
+      action: "login",
       success: true,
     });
 

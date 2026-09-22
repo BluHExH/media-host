@@ -4,17 +4,10 @@ import {
   ensureSchema,
   checkRateLimit,
   getClientIp,
-  logAuthEvent,
-  getUserAgent,
+  makeResetToken,
 } from "@/lib/db";
 
 export const runtime = "edge";
-
-function randomToken(): string {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,77 +24,62 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const username = String(body.username || "")
       .trim()
-      .toLowerCase();
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, "")
+      .slice(0, 32);
     const email = String(body.email || "")
       .trim()
-      .toLowerCase();
+      .toLowerCase()
+      .slice(0, 120);
 
     if (!username || !email) {
       return NextResponse.json(
-        { error: "Username and email required" },
+        { error: "Username and recovery email required" },
         { status: 400 }
       );
     }
 
     const sql = getSql();
-    // Ensure reset columns exist
-    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token TEXT`;
-    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_expires TIMESTAMPTZ`;
-
     const rows = await sql`
-      SELECT id, username, email FROM users
-      WHERE username = ${username} AND email IS NOT NULL AND lower(email) = ${email}
-      LIMIT 1
+      SELECT id, username, email FROM users WHERE username = ${username} LIMIT 1
     `;
 
-    // Always same shape to avoid user enumeration when possible,
-    // but we need to return a token for this app (no email SMTP).
+    // Generic message to avoid user enumeration on timing — still verify strictly
     if (!rows.length) {
-      await logAuthEvent({
-        username,
-        ip,
-        userAgent: getUserAgent(request),
-        action: "forgot_fail",
-        success: false,
-      });
       return NextResponse.json(
-        {
-          error:
-            "No account found with that username and email. Use the email you registered with.",
-        },
+        { error: "No account found with that username and email" },
         { status: 404 }
       );
     }
 
-    const user = rows[0] as { id: number; username: string };
-    const token = randomToken();
-    const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    const user = rows[0] as { id: number; username: string; email: string | null };
+    if (!user.email) {
+      return NextResponse.json(
+        {
+          error:
+            "This account has no recovery email. Add an email on Profile after login, or create a new account.",
+        },
+        { status: 400 }
+      );
+    }
+    if (user.email !== email) {
+      return NextResponse.json(
+        { error: "No account found with that username and email" },
+        { status: 404 }
+      );
+    }
 
-    await sql`
-      UPDATE users
-      SET reset_token = ${token}, reset_expires = ${expires.toISOString()}
-      WHERE id = ${user.id}
-    `;
+    const resetToken = await makeResetToken(user.id, user.username);
 
-    await logAuthEvent({
-      userId: user.id,
-      username: user.username,
-      ip,
-      userAgent: getUserAgent(request),
-      action: "forgot",
-      success: true,
-    });
-
-    // No email service — return one-time link (username+email already verified)
     return NextResponse.json({
       ok: true,
-      message: "Identity verified. Use the link below within 1 hour.",
-      resetPath: `/reset-password?token=${token}`,
-      expiresAt: expires.toISOString(),
+      message: "Verified. Set a new password on the next screen.",
+      resetToken,
+      username: user.username,
     });
   } catch (e) {
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Forgot failed" },
+      { error: e instanceof Error ? e.message : "Request failed" },
       { status: 500 }
     );
   }

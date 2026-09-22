@@ -3,11 +3,14 @@
 export const MAX_UPLOAD_BYTES = 500 * 1024 * 1024; // 500 MB
 export const MAX_UPLOAD_LABEL = "500 MB";
 
-/** Video & audio hosting paused */
+/** Video & audio hosting temporarily off */
+export const VIDEO_ENABLED = false;
+export const AUDIO_ENABLED = false;
+
 export const VIDEO_DISABLED_MSG =
-  "Video hosting is under development. Only images and HTML are available right now.";
+  "Video hosting is under development. Coming soon — please upload images or HTML for now.";
 export const AUDIO_DISABLED_MSG =
-  "Audio hosting is under development. Only images and HTML are available right now.";
+  "Audio hosting is under development. Coming soon — please upload images or HTML for now.";
 
 export function guessMime(name: string, type: string): string {
   if (type && type.startsWith("image/")) return type;
@@ -49,15 +52,15 @@ export function guessMime(name: string, type: string): string {
 
 export function isAllowedMime(mime: string): boolean {
   const m = (mime || "").toLowerCase();
-  // Video & audio temporarily disabled
-  if (m.startsWith("video/") || m.startsWith("audio/")) return false;
+  if (m.startsWith("video/")) return VIDEO_ENABLED;
+  if (m.startsWith("audio/")) return AUDIO_ENABLED;
   return m.startsWith("image/") || m.startsWith("text/html");
 }
 
-export function mediaDisabledMessage(mime: string): string | null {
+export function disabledMediaMessage(mime: string): string | null {
   const m = (mime || "").toLowerCase();
-  if (m.startsWith("video/")) return VIDEO_DISABLED_MSG;
-  if (m.startsWith("audio/")) return AUDIO_DISABLED_MSG;
+  if (m.startsWith("video/") && !VIDEO_ENABLED) return VIDEO_DISABLED_MSG;
+  if (m.startsWith("audio/") && !AUDIO_ENABLED) return AUDIO_DISABLED_MSG;
   return null;
 }
 
