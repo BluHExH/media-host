@@ -1,13 +1,10 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { NextRequest, NextResponse } from "next/server";
 import { parseToken, checkRateLimit, getClientIp } from "@/lib/db";
-import {
-  ALLOWED_CONTENT_TYPES,
-  MAX_UPLOAD_BYTES,
-  sanitizeAlbum,
-} from "@/lib/media-mime";
+import { MAX_UPLOAD_BYTES } from "@/lib/media-mime";
 
-export const runtime = "edge";
+// handleUpload needs Node (not edge) for reliable token generation
+export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,43 +20,40 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Login required" }, { status: 401 });
     }
 
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return NextResponse.json(
+        { error: "BLOB_READ_WRITE_TOKEN missing on server" },
+        { status: 500 }
+      );
+    }
+
     const body = (await request.json()) as HandleUploadBody;
 
     const jsonResponse = await handleUpload({
       body,
       request,
-      onBeforeGenerateToken: async (pathname, clientPayload) => {
-        let album = "general";
-        try {
-          if (clientPayload) {
-            const p = JSON.parse(clientPayload);
-            album = sanitizeAlbum(p.album);
-          }
-        } catch {
-          /* ignore */
-        }
-        // pathname already includes album/name from client
-        void pathname;
-        void album;
+      token: process.env.BLOB_READ_WRITE_TOKEN,
+      onBeforeGenerateToken: async (_pathname, _clientPayload) => {
         return {
-          allowedContentTypes: ALLOWED_CONTENT_TYPES,
+          // Do not tightly restrict MIME — browsers often send empty/octet-stream
           maximumSizeInBytes: MAX_UPLOAD_BYTES,
           addRandomSuffix: true,
+          allowOverwrite: false,
           tokenPayload: JSON.stringify({
             userId: parsed.userId,
             username: parsed.username,
           }),
         };
       },
-      // Metadata is saved client-side via /api/upload/complete (more reliable)
-      onUploadCompleted: async () => {},
+      onUploadCompleted: async () => {
+        // Metadata saved via /api/upload/complete from client
+      },
     });
 
     return NextResponse.json(jsonResponse);
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Upload token failed" },
-      { status: 400 }
-    );
+    const msg = e instanceof Error ? e.message : "Upload token failed";
+    console.error("blob handleUpload error:", msg);
+    return NextResponse.json({ error: msg }, { status: 400 });
   }
 }

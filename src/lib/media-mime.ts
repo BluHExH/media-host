@@ -10,7 +10,7 @@ export function guessMime(name: string, type: string): string {
   if (type && (type === "text/html" || type.startsWith("text/html"))) {
     return "text/html; charset=utf-8";
   }
-  const ext = name.split(".").pop()?.toLowerCase() || "";
+  const ext = (name.split(".").pop() || "").toLowerCase();
   const map: Record<string, string> = {
     jpg: "image/jpeg",
     jpeg: "image/jpeg",
@@ -34,6 +34,7 @@ export function guessMime(name: string, type: string): string {
     mov: "video/quicktime",
     m4v: "video/x-m4v",
     mkv: "video/x-matroska",
+    avi: "video/x-msvideo",
     html: "text/html; charset=utf-8",
     htm: "text/html; charset=utf-8",
   };
@@ -41,41 +42,14 @@ export function guessMime(name: string, type: string): string {
 }
 
 export function isAllowedMime(mime: string): boolean {
+  const m = (mime || "").toLowerCase();
   return (
-    mime.startsWith("image/") ||
-    mime.startsWith("audio/") ||
-    mime.startsWith("video/") ||
-    mime.startsWith("text/html")
+    m.startsWith("image/") ||
+    m.startsWith("audio/") ||
+    m.startsWith("video/") ||
+    m.startsWith("text/html")
   );
 }
-
-export const ALLOWED_CONTENT_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "image/avif",
-  "image/bmp",
-  "image/svg+xml",
-  "image/heic",
-  "image/heif",
-  "audio/mpeg",
-  "audio/wav",
-  "audio/ogg",
-  "audio/mp4",
-  "audio/aac",
-  "audio/flac",
-  "audio/opus",
-  "audio/webm",
-  "video/mp4",
-  "video/webm",
-  "video/quicktime",
-  "video/x-m4v",
-  "video/x-matroska",
-  "text/html",
-  "text/html;charset=utf-8",
-  "text/html; charset=utf-8",
-];
 
 export function computeExpiry(daysRaw: string | null | undefined): Date | null {
   if (!daysRaw || daysRaw === "never" || daysRaw === "0") return null;
