@@ -4,8 +4,8 @@ import {
   ensureSchema,
   checkRateLimit,
   getClientIp,
-  makeResetToken,
 } from "@/lib/db";
+import { makeResetToken } from "@/lib/reset-token";
 
 export const runtime = "edge";
 
@@ -44,7 +44,6 @@ export async function POST(request: NextRequest) {
       SELECT id, username, email FROM users WHERE username = ${username} LIMIT 1
     `;
 
-    // Generic message to avoid user enumeration on timing — still verify strictly
     if (!rows.length) {
       return NextResponse.json(
         { error: "No account found with that username and email" },
@@ -57,7 +56,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "This account has no recovery email. Add an email on Profile after login, or create a new account.",
+            "This account has no recovery email. Register again with an email, or ask admin.",
         },
         { status: 400 }
       );

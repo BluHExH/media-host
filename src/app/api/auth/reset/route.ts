@@ -4,11 +4,11 @@ import {
   ensureSchema,
   checkRateLimit,
   getClientIp,
-  parseResetToken,
   hashPassword,
   logAuthEvent,
   getUserAgent,
 } from "@/lib/db";
+import { parseResetToken } from "@/lib/reset-token";
 
 export const runtime = "edge";
 
@@ -50,7 +50,6 @@ export async function POST(request: NextRequest) {
     const sql = getSql();
     await sql`UPDATE users SET password_hash = ${password_hash} WHERE id = ${parsed.userId}`;
 
-    // Invalidate all refresh sessions for security
     try {
       await sql`DELETE FROM refresh_tokens WHERE user_id = ${parsed.userId}`;
     } catch {
