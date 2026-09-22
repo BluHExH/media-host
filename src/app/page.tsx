@@ -116,14 +116,14 @@ export default function HomePage() {
       <main className="mx-auto max-w-3xl px-4 pb-24 pt-12 sm:px-6 sm:pt-16">
         <div className="mh-fade-up text-center">
           <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wider" style={{ border: "1px solid rgba(130,219,216,0.6)", background: "rgba(255,255,255,0.55)", backdropFilter: "blur(10px)", color: "#0F4C81" }}>
-            Account required · Up to 500 MB
+            Account required · Images &amp; HTML
           </span>
           <h1 className="mh-hero-title mt-5 text-4xl font-bold tracking-tight sm:text-5xl" style={{ color: "#1A2B3C" }}>
             Your media,
             <span className="mh-gradient-text block">floating on the edge</span>
           </h1>
           <p className="mh-hero-sub mx-auto mt-4 max-w-lg text-base sm:text-lg" style={{ color: "#5a6f82" }}>
-            Sign in, drop files, get instant CDN links. Video up to 500 MB via direct upload.
+            Images and HTML. Video &amp; audio hosting under development.
           </p>
         </div>
 
@@ -136,7 +136,7 @@ export default function HomePage() {
           className={"mh-fade-up mh-dropzone-glass relative mt-6 overflow-hidden " + (dragOver ? "is-active" : "")}
         >
           {loggedIn ? (
-            <input ref={ref} type="file" accept="image/*,video/*,audio/*,.html,.htm" multiple onChange={(e) => onPick(e.target.files)} className="absolute inset-0 z-10 cursor-pointer opacity-0" disabled={uploading} />
+            <input ref={ref} type="file" accept="image/*,.html,.htm" multiple onChange={(e) => onPick(e.target.files)} className="absolute inset-0 z-10 cursor-pointer opacity-0" disabled={uploading} />
           ) : (
             <button type="button" onClick={requireLogin} className="absolute inset-0 z-10 cursor-pointer" aria-label="Sign in to upload" />
           )}
@@ -150,7 +150,7 @@ export default function HomePage() {
               {uploading ? ("Uploading " + progress.done + "/" + progress.total + "…") : loggedIn ? "Drop files here" : "Create an account to upload"}
             </p>
             <p className="mt-2 text-sm" style={{ color: "#5a6f82" }}>
-              {loggedIn ? "Image · Video · Audio · HTML · up to 500 MB · direct CDN" : "Free register · your files stay private"}
+              {loggedIn ? "Images & HTML · video/audio under development" : "Free register · your files stay private"}
             </p>
           </div>
         </div>
@@ -201,7 +201,7 @@ export default function HomePage() {
       </main>
 
       <footer className="border-t border-white/40 py-10 text-center text-xs" style={{ color: "#5a6f82", background: "rgba(255,255,255,0.35)", backdropFilter: "blur(12px)" }}>
-        Media Host · Login required for all uploads · Max 500 MB
+        Media Host · Login required · Video/audio under development
       </footer>
     </div>
   );
