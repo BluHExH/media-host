@@ -74,6 +74,7 @@ export default function LibraryClient() {
     setUploading(true); setError("");
     const list = [...pending];
     let ok = 0, failed = 0, aborted = false, index = 0;
+    let lastErr = "";
     const worker = async () => {
       while (index < list.length && !aborted) {
         const file = list[index++];
@@ -83,14 +84,15 @@ export default function LibraryClient() {
         } catch (e: any) {
           const msg = e?.message || ("Failed: " + file.name);
           if (/login required/i.test(msg)) { aborted = true; clearAuth(); router.replace("/login"); return; }
-          failed++; setError(msg);
+          failed++;
+          lastErr = msg;
         }
       }
     };
     await Promise.all(Array.from({ length: Math.min(3, list.length) }, () => worker()));
     setUploading(false); setPending(null); if (ref.current) ref.current.value = "";
     if (ok) await load();
-    if (failed) setError("Uploaded " + ok + "/" + list.length + ", failed " + failed);
+    if (failed) setError(lastErr || ("Uploaded " + ok + "/" + list.length + ", failed " + failed));
   };
 
   const del = async (urls: string[]) => {
@@ -138,7 +140,7 @@ export default function LibraryClient() {
           <input ref={ref} type="file" accept="image/*,video/*,audio/*,.html,.htm" multiple className="absolute inset-0 cursor-pointer opacity-0" disabled={uploading || !!pending} onChange={(e) => openUploadModal(e.target.files)} />
           <p className="text-sm font-semibold" style={{ color: "#1A2B3C" }}>{uploading ? "Uploading…" : "Drop files or click — up to 500 MB (direct CDN)"}</p>
         </div>
-        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+        {error && <p className="mt-3 text-sm text-red-600 break-words">{error}</p>}
         <div className="mt-6 flex flex-wrap gap-2">
           <select value={folderFilter} onChange={(e) => setFolderFilter(e.target.value)} className="mh-input max-w-[10rem]">
             <option value="all">All folders</option>
