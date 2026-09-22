@@ -64,6 +64,9 @@ export function disabledMediaMessage(mime: string): string | null {
   return null;
 }
 
+/** Alias used by client-upload */
+export const mediaDisabledMessage = disabledMediaMessage;
+
 export function computeExpiry(daysRaw: string | null | undefined): Date | null {
   if (!daysRaw || daysRaw === "never" || daysRaw === "0") return null;
   const days = parseInt(String(daysRaw), 10);
