@@ -10,7 +10,6 @@ export function middleware(request: NextRequest) {
     "Permissions-Policy",
     "camera=(), microphone=(), geolocation=(), payment=()"
   );
-  // Baseline CSP for app pages (not /api/render which sets its own)
   if (!request.nextUrl.pathname.startsWith("/api/render")) {
     res.headers.set(
       "Content-Security-Policy",
@@ -20,7 +19,8 @@ export function middleware(request: NextRequest) {
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: blob: https://*.public.blob.vercel-storage.com https://*.blob.vercel-storage.com",
         "media-src 'self' blob: https://*.public.blob.vercel-storage.com https://*.blob.vercel-storage.com",
-        "connect-src 'self' https://*.public.blob.vercel-storage.com https://*.blob.vercel-storage.com https://cdn.jsdelivr.net",
+        // Client uploads talk to Vercel Blob API + storage hosts
+        "connect-src 'self' https://*.public.blob.vercel-storage.com https://*.blob.vercel-storage.com https://vercel.com https://*.vercel.com https://cdn.jsdelivr.net",
         "font-src 'self' data:",
         "frame-ancestors 'none'",
         "base-uri 'self'",
