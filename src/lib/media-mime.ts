@@ -3,6 +3,12 @@
 export const MAX_UPLOAD_BYTES = 500 * 1024 * 1024; // 500 MB
 export const MAX_UPLOAD_LABEL = "500 MB";
 
+/** Video & audio hosting paused */
+export const VIDEO_DISABLED_MSG =
+  "Video hosting is under development. Only images and HTML are available right now.";
+export const AUDIO_DISABLED_MSG =
+  "Audio hosting is under development. Only images and HTML are available right now.";
+
 export function guessMime(name: string, type: string): string {
   if (type && type.startsWith("image/")) return type;
   if (type && type.startsWith("audio/")) return type;
@@ -43,12 +49,16 @@ export function guessMime(name: string, type: string): string {
 
 export function isAllowedMime(mime: string): boolean {
   const m = (mime || "").toLowerCase();
-  return (
-    m.startsWith("image/") ||
-    m.startsWith("audio/") ||
-    m.startsWith("video/") ||
-    m.startsWith("text/html")
-  );
+  // Video & audio temporarily disabled
+  if (m.startsWith("video/") || m.startsWith("audio/")) return false;
+  return m.startsWith("image/") || m.startsWith("text/html");
+}
+
+export function mediaDisabledMessage(mime: string): string | null {
+  const m = (mime || "").toLowerCase();
+  if (m.startsWith("video/")) return VIDEO_DISABLED_MSG;
+  if (m.startsWith("audio/")) return AUDIO_DISABLED_MSG;
+  return null;
 }
 
 export function computeExpiry(daysRaw: string | null | undefined): Date | null {

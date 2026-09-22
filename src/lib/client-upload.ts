@@ -5,6 +5,7 @@ import { getAccessToken, authFetch, ensureSession } from "@/lib/client-auth";
 import {
   guessMime,
   isAllowedMime,
+  mediaDisabledMessage,
   MAX_UPLOAD_BYTES,
   MAX_UPLOAD_LABEL,
 } from "@/lib/media-mime";
@@ -73,7 +74,6 @@ async function uploadViaClientToken(
 ): Promise<UploadResult> {
   const album = opts.album || "general";
 
-  // 1) Get short-lived client token from our API (authenticated)
   const tokRes = await authFetch("/api/upload/token", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -89,7 +89,6 @@ async function uploadViaClientToken(
     throw new Error("Upload token empty — check BLOB_READ_WRITE_TOKEN on Vercel");
   }
 
-  // 2) Upload file directly to Vercel Blob from browser
   let blob;
   try {
     blob = await put(tokData.pathname || file.name, file, {
@@ -103,7 +102,6 @@ async function uploadViaClientToken(
     throw new Error("Blob put failed: " + errText(e));
   }
 
-  // 3) Save metadata in our DB
   const complete = await authFetch("/api/upload/complete", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -135,7 +133,6 @@ async function uploadViaClientToken(
   };
 }
 
-/** Small files → server; large files → client token + put. Max 500 MB. */
 export async function uploadMediaFile(
   file: File,
   opts: UploadOptions = {}
@@ -145,6 +142,8 @@ export async function uploadMediaFile(
   }
 
   const mime = guessMime(file.name, file.type || "");
+  const disabled = mediaDisabledMessage(mime);
+  if (disabled) throw new Error(disabled);
   if (!isAllowedMime(mime)) {
     throw new Error(`Invalid type (${mime || file.type || "unknown"})`);
   }
@@ -162,7 +161,6 @@ export async function uploadMediaFile(
       if (!/too large|body|413|payload|Entity/i.test(msg)) {
         throw new Error(msg);
       }
-      // fall through to client path
     }
   }
 
