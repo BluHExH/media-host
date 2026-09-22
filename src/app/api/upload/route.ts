@@ -5,6 +5,7 @@ import {
   computeExpiry,
   guessMime,
   isAllowedMime,
+  mediaDisabledMessage,
   sanitizeAlbum,
   MAX_UPLOAD_BYTES,
   MAX_UPLOAD_LABEL,
@@ -12,7 +13,6 @@ import {
 
 export const runtime = "edge";
 
-/** Legacy server upload — still works for smaller files / tools (nobg, upscale). Prefer client upload for video. */
 export async function POST(request: NextRequest) {
   try {
     const ip = getClientIp(request);
@@ -39,17 +39,17 @@ export async function POST(request: NextRequest) {
     const isPublic = formData.get("public") === "1" || formData.get("public") === "true";
     const mime = guessMime(file.name, file.type);
 
+    const disabled = mediaDisabledMessage(mime);
+    if (disabled) {
+      return NextResponse.json({ error: disabled }, { status: 403 });
+    }
     if (!isAllowedMime(mime)) {
-      return NextResponse.json({ error: "Invalid type" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid type — images and HTML only" }, { status: 400 });
     }
     if (file.size > MAX_UPLOAD_BYTES) {
-      return NextResponse.json(
-        { error: `Max ${MAX_UPLOAD_LABEL}. Use the library uploader for large video.` },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: `Max ${MAX_UPLOAD_LABEL}` }, { status: 400 });
     }
 
-    // Server path still limited by platform body size — OK for images/tools
     const blob = await put(`${album}/${file.name}`, file, {
       access: "public",
       addRandomSuffix: true,
