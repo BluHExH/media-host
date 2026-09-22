@@ -1,6 +1,6 @@
 "use client";
 
-import { upload } from "@vercel/blob/client";
+import { put } from "@vercel/blob/client";
 import { getAccessToken, authFetch, ensureSession } from "@/lib/client-auth";
 import {
   guessMime,
@@ -24,8 +24,21 @@ export type UploadResult = {
   previewUrl?: string;
 };
 
-/** Server path works up to ~3.5MB on Vercel; larger files use client direct Blob. */
 const SERVER_SAFE_BYTES = 3.5 * 1024 * 1024;
+
+function errText(e: unknown): string {
+  if (!e) return "Unknown error";
+  if (typeof e === "string") return e;
+  const any = e as any;
+  if (any.message && String(any.message).trim()) return String(any.message);
+  if (any.cause?.message) return String(any.cause.message);
+  if (any.error) return String(any.error);
+  try {
+    return JSON.stringify(e);
+  } catch {
+    return String(e);
+  }
+}
 
 async function uploadViaServer(
   file: File,
@@ -41,7 +54,7 @@ async function uploadViaServer(
   const res = await authFetch("/api/upload", { method: "POST", body: fd });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(data.error || `Server upload failed (${res.status})`);
+    throw new Error(data.error || `Server upload failed (HTTP ${res.status})`);
   }
   return {
     url: data.url,
@@ -53,44 +66,44 @@ async function uploadViaServer(
   };
 }
 
-async function uploadViaClient(
+async function uploadViaClientToken(
   file: File,
   opts: UploadOptions,
-  mime: string,
-  token: string
+  mime: string
 ): Promise<UploadResult> {
-  const album =
-    (opts.album || "general")
-      .toLowerCase()
-      .replace(/[^a-z0-9-_]/g, "-")
-      .slice(0, 40) || "general";
-  const safeName =
-    file.name.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(0, 120) || "file";
+  const album = opts.album || "general";
 
-  let blob;
-  try {
-    blob = await upload(`${album}/${safeName}`, file, {
-      access: "public",
-      handleUploadUrl: "/api/upload/blob",
-      // multipart helps large files; also OK for 14MB+
-      multipart: file.size > 4 * 1024 * 1024,
-      contentType: mime,
-      clientPayload: JSON.stringify({
-        album,
-        expiry: opts.expiry || "never",
-        isPublic: !!opts.isPublic,
-        contentType: mime,
-        size: file.size,
-      }),
-      headers: {
-        "x-auth-token": token,
-      },
-    });
-  } catch (e: any) {
-    const raw = e?.message || String(e);
-    throw new Error(`Direct upload failed: ${raw}`);
+  // 1) Get short-lived client token from our API (authenticated)
+  const tokRes = await authFetch("/api/upload/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ album, filename: file.name }),
+  });
+  const tokData = await tokRes.json().catch(() => ({}));
+  if (!tokRes.ok) {
+    throw new Error(
+      tokData.error || `Could not get upload token (HTTP ${tokRes.status})`
+    );
+  }
+  if (!tokData.clientToken) {
+    throw new Error("Upload token empty — check BLOB_READ_WRITE_TOKEN on Vercel");
   }
 
+  // 2) Upload file directly to Vercel Blob from browser
+  let blob;
+  try {
+    blob = await put(tokData.pathname || file.name, file, {
+      access: "public",
+      token: tokData.clientToken,
+      contentType: mime,
+      multipart: file.size > 4 * 1024 * 1024,
+      addRandomSuffix: true,
+    });
+  } catch (e) {
+    throw new Error("Blob put failed: " + errText(e));
+  }
+
+  // 3) Save metadata in our DB
   const complete = await authFetch("/api/upload/complete", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -104,17 +117,12 @@ async function uploadViaClient(
       isPublic: !!opts.isPublic,
     }),
   });
-
   const data = await complete.json().catch(() => ({}));
   if (!complete.ok) {
-    // File is on Blob but meta failed — still surface URL if possible
-    if (blob?.url) {
-      throw new Error(
-        data.error ||
-          `File uploaded but library save failed (${complete.status}). URL: ${blob.url}`
-      );
-    }
-    throw new Error(data.error || `Save metadata failed (${complete.status})`);
+    throw new Error(
+      data.error ||
+        `Uploaded to CDN but library save failed (HTTP ${complete.status}). URL: ${blob.url}`
+    );
   }
 
   return {
@@ -127,7 +135,7 @@ async function uploadViaClient(
   };
 }
 
-/** Direct-to-Blob for large files; server put for small ones. Max 500 MB. */
+/** Small files → server; large files → client token + put. Max 500 MB. */
 export async function uploadMediaFile(
   file: File,
   opts: UploadOptions = {}
@@ -137,34 +145,30 @@ export async function uploadMediaFile(
   }
 
   const mime = guessMime(file.name, file.type || "");
-  if (!isAllowedMime(mime) && !file.type) {
-    // allow if extension mapped; if still octet-stream with no known ext, reject
-    if (mime === "application/octet-stream") {
-      throw new Error("Invalid type — image, video, audio, or HTML only");
-    }
-  }
   if (!isAllowedMime(mime)) {
     throw new Error(`Invalid type (${mime || file.type || "unknown"})`);
   }
 
   await ensureSession();
-  const token = getAccessToken();
-  if (!token) {
+  if (!getAccessToken()) {
     throw new Error("Login required");
   }
 
-  // Small files: simple server path (more reliable)
   if (file.size <= SERVER_SAFE_BYTES) {
     try {
       return await uploadViaServer(file, opts, mime);
-    } catch (e: any) {
-      // fall through to client if server rejects size
-      const msg = e?.message || "";
-      if (!/too large|body|413|payload/i.test(msg)) {
-        throw e;
+    } catch (e) {
+      const msg = errText(e);
+      if (!/too large|body|413|payload|Entity/i.test(msg)) {
+        throw new Error(msg);
       }
+      // fall through to client path
     }
   }
 
-  return uploadViaClient(file, opts, mime, token);
+  try {
+    return await uploadViaClientToken(file, opts, mime);
+  } catch (e) {
+    throw new Error(errText(e));
+  }
 }
