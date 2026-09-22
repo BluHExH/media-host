@@ -12,13 +12,28 @@ function safeNext(raw: string | null): string {
   return raw;
 }
 
+function EyeBtn({ show, onClick }: { show: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-sm"
+      style={{ color: "#5a6f82" }}
+      aria-label={show ? "Hide password" : "Show password"}
+      tabIndex={-1}
+    >
+      {show ? "🙈" : "👁"}
+    </button>
+  );
+}
+
 function LoginForm() {
   const router = useRouter();
   const search = useSearchParams();
   const [tab, setTab] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -41,9 +56,9 @@ function LoginForm() {
       setError("Password must be at least 8 characters");
       return;
     }
-    if (tab === "register" && !email.trim()) {
+    if (tab === "register" && email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setLoading(false);
-      setError("Email required (needed for password recovery)");
+      setError("Invalid email");
       return;
     }
     const endpoint = tab === "register" ? "/api/auth/register" : "/api/auth/login";
@@ -54,7 +69,7 @@ function LoginForm() {
         username: username.trim().toLowerCase(),
         password,
         displayName: username.trim(),
-        email: email.trim().toLowerCase() || undefined,
+        email: email.trim() || undefined,
       }),
     });
     const data = await res.json();
@@ -80,34 +95,24 @@ function LoginForm() {
             >
               MH
             </div>
-            <span className="text-sm font-semibold" style={{ color: "#1A2B3C" }}>
-              Media Host
-            </span>
+            <span className="text-sm font-semibold" style={{ color: "#1A2B3C" }}>Media Host</span>
           </Link>
-          <Link href="/" className="text-sm font-medium" style={{ color: "#3BACB6" }}>
-            ← Home
-          </Link>
+          <Link href="/" className="text-sm font-medium" style={{ color: "#3BACB6" }}>← Home</Link>
         </div>
       </header>
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 py-12">
         <div className="mh-fade-up mh-glass-strong p-8">
-          <h1
-            className="text-2xl font-bold tracking-tight"
-            style={{ color: "#1A2B3C", fontFamily: "var(--font-display), sans-serif" }}
-          >
+          <h1 className="text-2xl font-bold tracking-tight" style={{ color: "#1A2B3C" }}>
             {tab === "login" ? "Welcome back" : "Create your account"}
           </h1>
           <p className="mt-2 text-sm" style={{ color: "#5a6f82" }}>
             {tab === "login"
               ? "Sign in to your private media library."
-              : "Free forever. Use a real email for password recovery."}
+              : "Free forever. Add an email so you can recover your password."}
           </p>
           <div
             className="mt-6 flex rounded-full p-1"
-            style={{
-              background: "rgba(245,249,252,0.8)",
-              border: "1px solid rgba(15,76,129,0.1)",
-            }}
+            style={{ background: "rgba(245,249,252,0.8)", border: "1px solid rgba(15,76,129,0.1)" }}
           >
             <button
               type="button"
@@ -115,11 +120,7 @@ function LoginForm() {
               className="flex-1 rounded-full py-2 text-sm font-semibold transition"
               style={
                 tab === "login"
-                  ? {
-                      background: "rgba(255,255,255,0.95)",
-                      color: "#0F4C81",
-                      boxShadow: "0 4px 14px rgba(15,76,129,0.12)",
-                    }
+                  ? { background: "rgba(255,255,255,0.95)", color: "#0F4C81", boxShadow: "0 4px 14px rgba(15,76,129,0.12)" }
                   : { color: "#5a6f82" }
               }
             >
@@ -131,11 +132,7 @@ function LoginForm() {
               className="flex-1 rounded-full py-2 text-sm font-semibold transition"
               style={
                 tab === "register"
-                  ? {
-                      background: "rgba(255,255,255,0.95)",
-                      color: "#0F4C81",
-                      boxShadow: "0 4px 14px rgba(15,76,129,0.12)",
-                    }
+                  ? { background: "rgba(255,255,255,0.95)", color: "#0F4C81", boxShadow: "0 4px 14px rgba(15,76,129,0.12)" }
                   : { color: "#5a6f82" }
               }
             >
@@ -144,21 +141,13 @@ function LoginForm() {
           </div>
           <form onSubmit={submit} className="mt-6 space-y-4">
             <div>
-              <label className="mb-1.5 block text-xs font-semibold" style={{ color: "#5a6f82" }}>
-                Username
-              </label>
-              <input
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                autoComplete="username"
-                className="mh-input"
-                placeholder="yourname"
-              />
+              <label className="mb-1.5 block text-xs font-semibold" style={{ color: "#5a6f82" }}>Username</label>
+              <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" className="mh-input" placeholder="yourname" />
             </div>
             {tab === "register" && (
               <div>
                 <label className="mb-1.5 block text-xs font-semibold" style={{ color: "#5a6f82" }}>
-                  Email
+                  Email <span className="font-normal">(for password recovery)</span>
                 </label>
                 <input
                   type="email"
@@ -166,15 +155,12 @@ function LoginForm() {
                   onChange={(e) => setEmail(e.target.value)}
                   autoComplete="email"
                   className="mh-input"
-                  placeholder="you@email.com"
-                  required
+                  placeholder="you@example.com"
                 />
               </div>
             )}
             <div>
-              <label className="mb-1.5 block text-xs font-semibold" style={{ color: "#5a6f82" }}>
-                Password
-              </label>
+              <label className="mb-1.5 block text-xs font-semibold" style={{ color: "#5a6f82" }}>Password</label>
               <div className="relative">
                 <input
                   type={showPass ? "text" : "password"}
@@ -184,39 +170,18 @@ function LoginForm() {
                   className="mh-input pr-12"
                   placeholder={tab === "register" ? "min 8 characters" : "••••••••"}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPass((s) => !s)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-sm"
-                  style={{ color: "#5a6f82" }}
-                  aria-label={showPass ? "Hide password" : "Show password"}
-                  title={showPass ? "Hide" : "Show"}
-                >
-                  {showPass ? "🙈" : "👁"}
-                </button>
+                <EyeBtn show={showPass} onClick={() => setShowPass((s) => !s)} />
               </div>
             </div>
             {tab === "login" && (
               <div className="text-right">
-                <Link
-                  href="/forgot-password"
-                  className="text-xs font-semibold underline"
-                  style={{ color: "#0F4C81" }}
-                >
+                <Link href="/forgot" className="text-xs font-medium underline" style={{ color: "#0F4C81" }}>
                   Forgot password?
                 </Link>
               </div>
             )}
-            {error && (
-              <p className="rounded-xl border border-red-200 bg-red-50/90 px-3 py-2 text-sm text-red-700">
-                {error}
-              </p>
-            )}
-            <button
-              type="submit"
-              disabled={loading}
-              className="mh-btn mh-btn-primary h-12 w-full disabled:opacity-50"
-            >
+            {error && <p className="rounded-xl border border-red-200 bg-red-50/90 px-3 py-2 text-sm text-red-700">{error}</p>}
+            <button type="submit" disabled={loading} className="mh-btn mh-btn-primary h-12 w-full disabled:opacity-50">
               {loading ? "Please wait…" : tab === "register" ? "Create account" : "Sign in"}
             </button>
           </form>
@@ -231,13 +196,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center" style={{ color: "#5a6f82" }}>
-          Loading…
-        </div>
-      }
-    >
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center" style={{ color: "#5a6f82" }}>Loading…</div>}>
       <LoginForm />
     </Suspense>
   );
