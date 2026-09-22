@@ -1,50 +1,18 @@
 import { put } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, parseToken, checkRateLimit, getClientIp } from "@/lib/db";
+import {
+  computeExpiry,
+  guessMime,
+  isAllowedMime,
+  sanitizeAlbum,
+  MAX_UPLOAD_BYTES,
+  MAX_UPLOAD_LABEL,
+} from "@/lib/media-mime";
 
 export const runtime = "edge";
 
-function guessMime(name: string, type: string): string {
-  if (type && type.startsWith("image/")) return type;
-  if (type && type.startsWith("audio/")) return type;
-  if (type && type.startsWith("video/")) return type;
-  if (type && (type === "text/html" || type.startsWith("text/html"))) {
-    return "text/html; charset=utf-8";
-  }
-  const ext = name.split(".").pop()?.toLowerCase() || "";
-  const map: Record<string, string> = {
-    jpg: "image/jpeg",
-    jpeg: "image/jpeg",
-    png: "image/png",
-    gif: "image/gif",
-    webp: "image/webp",
-    avif: "image/avif",
-    bmp: "image/bmp",
-    svg: "image/svg+xml",
-    heic: "image/heic",
-    heif: "image/heif",
-    mp3: "audio/mpeg",
-    wav: "audio/wav",
-    ogg: "audio/ogg",
-    m4a: "audio/mp4",
-    mp4: "video/mp4",
-    webm: "video/webm",
-    mov: "video/quicktime",
-    html: "text/html; charset=utf-8",
-    htm: "text/html; charset=utf-8",
-  };
-  return map[ext] || type || "application/octet-stream";
-}
-
-function computeExpiry(daysRaw: string | null): Date | null {
-  if (!daysRaw || daysRaw === "never" || daysRaw === "0") return null;
-  const days = parseInt(daysRaw, 10);
-  if (!days || days < 1) return null;
-  const d = new Date();
-  d.setDate(d.getDate() + Math.min(days, 3650));
-  return d;
-}
-
+/** Legacy server upload — still works for smaller files / tools (nobg, upscale). Prefer client upload for video. */
 export async function POST(request: NextRequest) {
   try {
     const ip = getClientIp(request);
@@ -66,30 +34,22 @@ export async function POST(request: NextRequest) {
     const file = formData.get("file") as File | null;
     if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
 
-    const album =
-      String(formData.get("album") || "general")
-        .toLowerCase()
-        .replace(/[^a-z0-9-_]/g, "-")
-        .slice(0, 40) || "general";
+    const album = sanitizeAlbum(formData.get("album") as string);
     const expiresAt = computeExpiry(formData.get("expiry") as string | null);
     const isPublic = formData.get("public") === "1" || formData.get("public") === "true";
     const mime = guessMime(file.name, file.type);
 
-    if (
-      !(
-        mime.startsWith("image/") ||
-        mime.startsWith("audio/") ||
-        mime.startsWith("video/") ||
-        mime.startsWith("text/html")
-      )
-    ) {
+    if (!isAllowedMime(mime)) {
       return NextResponse.json({ error: "Invalid type" }, { status: 400 });
     }
-    if (file.size > 100 * 1024 * 1024) {
-      return NextResponse.json({ error: "Max 100 MB" }, { status: 400 });
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return NextResponse.json(
+        { error: `Max ${MAX_UPLOAD_LABEL}. Use the library uploader for large video.` },
+        { status: 400 }
+      );
     }
 
-    // Original bytes only — no re-encode / resize
+    // Server path still limited by platform body size — OK for images/tools
     const blob = await put(`${album}/${file.name}`, file, {
       access: "public",
       addRandomSuffix: true,
