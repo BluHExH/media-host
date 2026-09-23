@@ -151,18 +151,18 @@ export default function ProfilePage() {
   return (
     <div className="mh-mesh min-h-screen">
       <header className="mh-nav-glass sticky top-0 z-30">
-        <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4">
+        <div className="mx-auto flex h-14 max-w-3xl items-center justify-between gap-3 px-4 sm:px-6">
           <Link href="/" className="text-sm font-semibold" style={{ color: "#1A2B3C" }}>Media Host</Link>
-          <nav className="flex gap-3 text-sm">
+          <nav className="mh-nav-links text-sm">
             <Link href="/library" style={{ color: "#5a6f82" }}>Library</Link>
             <button type="button" onClick={() => { clearAuth(); router.replace("/login"); }} style={{ color: "#b91c1c" }}>Sign out</button>
           </nav>
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl px-4 py-10">
-        <div className="mh-glass-strong p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+      <main className="mh-page mx-auto max-w-3xl px-4 sm:px-6">
+        <div className="mh-glass-strong p-6 sm:p-8">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
             <button type="button" onClick={() => avatarRef.current?.click()} className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border bg-white/50" disabled={avatarBusy}>
               {user?.avatarUrl ? (
                 <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" />
@@ -175,36 +175,37 @@ export default function ProfilePage() {
             <input ref={avatarRef} type="file" accept="image/*" className="hidden" onChange={(e) => onAvatar(e.target.files)} />
             <div className="min-w-0 flex-1">
               <h1 className="text-xl font-bold" style={{ color: "#1A2B3C" }}>{user?.displayName || user?.username}</h1>
-              <p className="text-sm" style={{ color: "#5a6f82" }}>@{user?.username}</p>
-              <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3" style={{ color: "#5a6f82" }}>
-                <div className="rounded-xl bg-white/50 px-3 py-2">
+              <p className="mt-1 text-sm" style={{ color: "#5a6f82" }}>@{user?.username}</p>
+              <div className="mt-4 grid grid-cols-2 gap-3 text-xs sm:grid-cols-3" style={{ color: "#5a6f82" }}>
+                <div className="rounded-xl bg-white/50 px-3 py-2.5">
                   <p className="font-semibold text-[#1A2B3C]">{stats.files}</p>
-                  <p>Files</p>
+                  <p className="mt-0.5">Files</p>
                 </div>
-                <div className="rounded-xl bg-white/50 px-3 py-2">
+                <div className="rounded-xl bg-white/50 px-3 py-2.5">
                   <p className="font-semibold text-[#1A2B3C]">{fmtBytes(stats.totalBytes)}</p>
-                  <p>Uploaded</p>
+                  <p className="mt-0.5">Uploaded</p>
                 </div>
-                <div className="col-span-2 rounded-xl bg-white/50 px-3 py-2 sm:col-span-1">
+                <div className="col-span-2 rounded-xl bg-white/50 px-3 py-2.5 sm:col-span-1">
                   <p className="font-semibold text-[#1A2B3C] text-[11px] leading-snug">{fmtDate(user?.lastLoginAt)}</p>
-                  <p>Last login</p>
+                  <p className="mt-0.5">Last login</p>
                 </div>
               </div>
             </div>
           </div>
 
-          <form onSubmit={saveProfile} className="mt-6 space-y-4 border-t border-white/40 pt-6">
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold" style={{ color: "#5a6f82" }}>Display name</label>
+          <form onSubmit={saveProfile} className="mt-8 space-y-5 border-t border-white/40 pt-8">
+            <div className="mh-field">
+              <label className="mh-label">Display name</label>
               <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="mh-input" />
             </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold" style={{ color: "#5a6f82" }}>Username</label>
+            <div className="mh-field">
+              <label className="mh-label">Username</label>
               <input value={username} onChange={(e) => setUsername(e.target.value)} className="mh-input" />
             </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold" style={{ color: "#5a6f82" }}>Recovery email</label>
+            <div className="mh-field">
+              <label className="mh-label">Recovery email</label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mh-input" placeholder="you@example.com" />
+              <p className="mh-help">Needed for Forgot password</p>
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
             {ok && <p className="text-sm text-emerald-700">{ok}</p>}
@@ -214,10 +215,10 @@ export default function ProfilePage() {
           </form>
         </div>
 
-        <div className="mh-glass mt-6 p-6">
+        <div className="mh-glass mt-8 p-6 sm:p-7">
           <h2 className="text-sm font-semibold" style={{ color: "#1A2B3C" }}>Activity (last 14 days)</h2>
-          <p className="mt-1 text-[11px]" style={{ color: "#5a6f82" }}>Uploads + logins per day</p>
-          <div className="mt-4 flex h-36 items-end gap-1">
+          <p className="mt-1.5 text-[11px] leading-relaxed" style={{ color: "#5a6f82" }}>Uploads + logins per day</p>
+          <div className="mt-5 flex h-36 items-end gap-1.5">
             {activity.length === 0 ? (
               <p className="w-full text-center text-xs" style={{ color: "#5a6f82" }}>No activity yet</p>
             ) : (
@@ -225,7 +226,7 @@ export default function ProfilePage() {
                 const total = (a.uploads || 0) + (a.logins || 0);
                 const px = Math.max(total > 0 ? 8 : 2, Math.round((total / maxAct) * 120));
                 return (
-                  <div key={a.day} className="flex flex-1 flex-col items-center justify-end gap-1" title={`${a.day}: ${a.uploads} uploads, ${a.logins} logins`}>
+                  <div key={a.day} className="flex flex-1 flex-col items-center justify-end gap-1.5" title={`${a.day}: ${a.uploads} uploads, ${a.logins} logins`}>
                     <div
                       className="w-full max-w-[28px] rounded-t-md"
                       style={{
@@ -241,9 +242,10 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        <div className="mt-8 rounded-2xl border border-red-200 bg-red-50/80 p-4">
+        <div className="mt-10 rounded-2xl border border-red-200 bg-red-50/80 p-5">
           <p className="text-sm font-semibold text-red-800">Danger zone</p>
-          <button type="button" disabled={deleting} onClick={deleteAccount} className="mt-3 rounded-full border border-red-300 px-4 py-2 text-sm text-red-700">
+          <p className="mt-1 text-xs text-red-700/80">Deletes account and all hosted files permanently.</p>
+          <button type="button" disabled={deleting} onClick={deleteAccount} className="mt-4 rounded-full border border-red-300 px-4 py-2 text-sm text-red-700">
             {deleting ? "Deleting…" : "Delete account"}
           </button>
         </div>
