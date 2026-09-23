@@ -96,7 +96,6 @@ async function uploadViaClientToken(
       token: tokData.clientToken,
       contentType: mime,
       multipart: file.size > 4 * 1024 * 1024,
-      addRandomSuffix: true,
     });
   } catch (e) {
     throw new Error("Blob put failed: " + errText(e));
@@ -133,6 +132,7 @@ async function uploadViaClientToken(
   };
 }
 
+/** Small files → server; large files → client token + put. Max 500 MB. */
 export async function uploadMediaFile(
   file: File,
   opts: UploadOptions = {}
