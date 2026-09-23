@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authFetch, clearAuth, hasSession, ensureSession, TK } from "@/lib/client-auth";
@@ -16,6 +16,7 @@ export default function ProfilePage() {
   const [activity, setActivity] = useState<Activity[]>([]);
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [saving, setSaving] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -37,6 +38,7 @@ export default function ProfilePage() {
     setUser(data.user);
     setDisplayName(data.user?.displayName || data.user?.username || "");
     setUsername(data.user?.username || "");
+    setEmail(data.user?.email || "");
     setStats(data.stats || { files: 0, totalBytes: 0 });
     setActivity(data.activity || []);
     setLoading(false);
@@ -71,7 +73,7 @@ export default function ProfilePage() {
     const res = await authFetch("/api/profile", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ displayName, username }),
+      body: JSON.stringify({ displayName, username, email }),
     });
     const data = await res.json().catch(() => ({}));
     setSaving(false);
@@ -81,25 +83,24 @@ export default function ProfilePage() {
     }
     if (data.token) localStorage.setItem(TK, data.token);
     setUser(data.user);
-    setOk("Profile saved");
+    setOk("Profile saved (email used for password recovery)");
   };
 
   const onAvatar = async (list: FileList | null) => {
     if (!list?.length) return;
     setAvatarBusy(true);
     setError("");
-    setOk("");
     const fd = new FormData();
     fd.append("file", list[0]);
     const res = await authFetch("/api/profile/avatar", { method: "POST", body: fd });
     const data = await res.json().catch(() => ({}));
     setAvatarBusy(false);
     if (!res.ok) {
-      setError(data.error || "Avatar failed");
+      setError(data.error || "Avatar upload failed");
       return;
     }
-    setUser((u: any) => ({ ...u, avatarUrl: data.avatarUrl }));
-    setOk("Profile photo updated");
+    setUser((u: any) => ({ ...u, avatarUrl: data.avatarUrl || data.url }));
+    setOk("Avatar updated");
   };
 
   const deleteAccount = async () => {
@@ -113,127 +114,95 @@ export default function ProfilePage() {
     });
     setDeleting(false);
     if (!res.ok) {
-      const d = await res.json().catch(() => ({}));
-      setError(d.error || "Delete failed");
+      const data = await res.json().catch(() => ({}));
+      setError(data.error || "Delete failed");
       return;
     }
     clearAuth();
-    router.replace("/login");
+    router.replace("/");
   };
-
-  const fmt = (b: number) =>
-    b < 1024 ? b + " B" : b < 1e6 ? (b / 1024).toFixed(1) + " KB" : (b / 1e6).toFixed(1) + " MB";
-  const maxY = Math.max(1, ...activity.map((a) => a.uploads + a.logins));
 
   if (loading) {
     return <div className="mh-mesh flex min-h-screen items-center justify-center text-[#5a6f82]">Loading profile…</div>;
   }
 
+  const maxAct = Math.max(1, ...activity.map((a) => a.uploads + a.logins));
+
   return (
     <div className="mh-mesh min-h-screen">
-      <header className="mh-nav-glass sticky top-0 z-20">
+      <header className="mh-nav-glass sticky top-0 z-30">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="flex h-8 w-8 items-center justify-center rounded-xl text-xs font-bold text-white" style={{ background: "linear-gradient(135deg,#0F4C81,#3BACB6)" }}>MH</Link>
-            <span className="text-sm font-semibold" style={{ color: "#1A2B3C" }}>Profile</span>
-          </div>
-          <div className="flex gap-3 text-sm">
-            <Link href="/library" style={{ color: "#0F4C81" }}>Library</Link>
-            <Link href="/" style={{ color: "#5a6f82" }}>Home</Link>
-          </div>
+          <Link href="/" className="text-sm font-semibold" style={{ color: "#1A2B3C" }}>Media Host</Link>
+          <nav className="flex gap-3 text-sm">
+            <Link href="/library" style={{ color: "#5a6f82" }}>Library</Link>
+            <button type="button" onClick={() => { clearAuth(); router.replace("/login"); }} style={{ color: "#b91c1c" }}>Sign out</button>
+          </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-3xl space-y-6 px-4 py-10">
-        {error && <p className="rounded-xl border border-red-200 bg-red-50/90 px-3 py-2 text-sm text-red-700">{error}</p>}
-        {ok && <p className="rounded-xl border border-emerald-200 bg-emerald-50/90 px-3 py-2 text-sm text-emerald-800">{ok}</p>}
-        {user && (
-          <>
-            <div className="mh-glass-strong p-6">
-              <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
-                <button type="button" onClick={() => avatarRef.current?.click()} className="relative group" disabled={avatarBusy}>
-                  <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full text-2xl font-bold text-white ring-2 ring-white shadow-lg" style={{ background: "linear-gradient(135deg,#0F4C81,#3BACB6)" }}>
-                    {user.avatarUrl ? (
-                      <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      (user.displayName || user.username || "?").slice(0, 1).toUpperCase()
-                    )}
-                  </div>
-                  <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 text-[10px] font-medium text-white opacity-0 group-hover:opacity-100">
-                    {avatarBusy ? "…" : "Change"}
-                  </span>
-                </button>
-                <input ref={avatarRef} type="file" accept="image/*" className="hidden" onChange={(e) => onAvatar(e.target.files)} />
-                <div>
-                  <h1 className="text-xl font-bold" style={{ color: "#1A2B3C" }}>{user.displayName || user.username}</h1>
-                  <p className="text-sm" style={{ color: "#5a6f82" }}>@{user.username}</p>
-                </div>
-              </div>
-              <form onSubmit={saveProfile} className="mt-6 space-y-4 border-t border-white/40 pt-6">
-                <div>
-                  <label className="mb-1 block text-xs font-medium" style={{ color: "#5a6f82" }}>Display name</label>
-                  <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="mh-input" />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium" style={{ color: "#5a6f82" }}>Username</label>
-                  <input value={username} onChange={(e) => setUsername(e.target.value)} className="mh-input" />
-                </div>
-                <button type="submit" disabled={saving} className="mh-btn mh-btn-primary px-5 py-2.5 disabled:opacity-50">
-                  {saving ? "Saving…" : "Save profile"}
-                </button>
-              </form>
-              <dl className="mt-6 grid gap-3 text-sm sm:grid-cols-2">
-                {["Account created", "Last login", "Files", "Storage used"].map((label, i) => {
-                  const vals = [
-                    user.createdAt ? new Date(user.createdAt).toLocaleString() : "—",
-                    user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : "—",
-                    String(stats.files),
-                    fmt(stats.totalBytes),
-                  ];
-                  return (
-                    <div key={label} className="rounded-2xl bg-white/50 px-4 py-3 backdrop-blur-sm">
-                      <dt className="text-xs" style={{ color: "#5a6f82" }}>{label}</dt>
-                      <dd className="mt-0.5 font-medium" style={{ color: "#1A2B3C" }}>{vals[i]}</dd>
-                    </div>
-                  );
-                })}
-              </dl>
-            </div>
-            <div className="mh-glass-strong p-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold" style={{ color: "#1A2B3C" }}>Activity (last 14 days)</h2>
-                <div className="flex gap-3 text-[10px]" style={{ color: "#5a6f82" }}>
-                  <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm" style={{ background: "#0F4C81" }} /> Uploads</span>
-                  <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-slate-300" /> Logins</span>
-                </div>
-              </div>
-              {activity.length === 0 || activity.every((a) => !a.uploads && !a.logins) ? (
-                <p className="mt-8 text-center text-sm" style={{ color: "#5a6f82" }}>No activity yet — upload a file or sign in again to see the graph.</p>
+
+      <main className="mx-auto max-w-3xl px-4 py-10">
+        <div className="mh-glass-strong p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+            <button type="button" onClick={() => avatarRef.current?.click()} className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border bg-white/50" disabled={avatarBusy}>
+              {user?.avatarUrl ? (
+                <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" />
               ) : (
-                <div className="mt-6 flex h-44 items-end gap-1.5">
-                  {activity.map((a) => {
-                    const upPx = a.uploads ? Math.max(6, Math.round((a.uploads / maxY) * 120)) : 0;
-                    const logPx = a.logins ? Math.max(4, Math.round((a.logins / maxY) * 120)) : 0;
-                    return (
-                      <div key={a.day} className="flex flex-1 flex-col items-center gap-1" title={`${a.day}: ${a.uploads} uploads, ${a.logins} logins`}>
-                        <div className="flex h-32 w-full flex-col justify-end gap-0.5">
-                          <div className="w-full rounded-t" style={{ height: upPx, background: "#0F4C81" }} />
-                          <div className="w-full rounded-b bg-slate-300" style={{ height: logPx }} />
-                        </div>
-                        <span className="text-[9px]" style={{ color: "#5a6f82" }}>{a.day.slice(5)}</span>
-                      </div>
-                    );
-                  })}
-                </div>
+                <span className="flex h-full items-center justify-center text-2xl font-bold" style={{ color: "#0F4C81" }}>
+                  {(user?.displayName || user?.username || "?").slice(0, 1).toUpperCase()}
+                </span>
               )}
+            </button>
+            <input ref={avatarRef} type="file" accept="image/*" className="hidden" onChange={(e) => onAvatar(e.target.files)} />
+            <div>
+              <h1 className="text-xl font-bold" style={{ color: "#1A2B3C" }}>{user?.displayName || user?.username}</h1>
+              <p className="text-sm" style={{ color: "#5a6f82" }}>@{user?.username}</p>
+              <p className="mt-1 text-xs" style={{ color: "#5a6f82" }}>{stats.files} files · click avatar to change photo</p>
             </div>
-            <div className="mh-glass p-6" style={{ borderColor: "rgba(248,113,113,0.4)" }}>
-              <h2 className="text-sm font-semibold text-red-800">Danger zone</h2>
-              <button type="button" onClick={deleteAccount} disabled={deleting} className="mt-4 rounded-full border border-red-300 bg-white/80 px-4 py-2 text-sm font-medium text-red-700">
-                {deleting ? "Deleting…" : "Delete my account"}
-              </button>
+          </div>
+
+          <form onSubmit={saveProfile} className="mt-6 space-y-4 border-t border-white/40 pt-6">
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold" style={{ color: "#5a6f82" }}>Display name</label>
+              <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="mh-input" />
             </div>
-          </>
-        )}
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold" style={{ color: "#5a6f82" }}>Username</label>
+              <input value={username} onChange={(e) => setUsername(e.target.value)} className="mh-input" />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold" style={{ color: "#5a6f82" }}>Recovery email</label>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mh-input" placeholder="you@example.com" />
+              <p className="mt-1 text-[11px]" style={{ color: "#5a6f82" }}>Required for Forgot password</p>
+            </div>
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            {ok && <p className="text-sm text-emerald-700">{ok}</p>}
+            <button type="submit" disabled={saving} className="mh-btn mh-btn-primary px-6 py-2.5 disabled:opacity-50">
+              {saving ? "Saving…" : "Save profile"}
+            </button>
+          </form>
+        </div>
+
+        <div className="mh-glass mt-6 p-6">
+          <h2 className="text-sm font-semibold" style={{ color: "#1A2B3C" }}>Activity (14 days)</h2>
+          <div className="mt-4 flex h-28 items-end gap-1">
+            {activity.map((a) => {
+              const h = Math.round(((a.uploads + a.logins) / maxAct) * 100);
+              return (
+                <div key={a.day} className="flex flex-1 flex-col items-center gap-1" title={`${a.day}: ${a.uploads} up · ${a.logins} login`}>
+                  <div className="w-full rounded-t bg-gradient-to-t from-[#0F4C81] to-[#82DBD8]" style={{ height: `${Math.max(4, h)}%` }} />
+                  <span className="text-[9px]" style={{ color: "#5a6f82" }}>{a.day.slice(8)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="mt-8 rounded-2xl border border-red-200 bg-red-50/80 p-4">
+          <p className="text-sm font-semibold text-red-800">Danger zone</p>
+          <button type="button" disabled={deleting} onClick={deleteAccount} className="mt-3 rounded-full border border-red-300 px-4 py-2 text-sm text-red-700">
+            {deleting ? "Deleting…" : "Delete account"}
+          </button>
+        </div>
       </main>
     </div>
   );
