@@ -74,8 +74,8 @@ export async function GET(request: NextRequest) {
         avatarUrl: u.avatar_url || null,
       },
       stats: {
-        files: (fileCount[0] as any)?.c || 0,
-        totalBytes: Number((totalSize[0] as any)?.s || 0),
+        files: Number((fileCount[0] as any)?.c) || 0,
+        totalBytes: Number((totalSize[0] as any)?.s) || 0,
       },
       activity,
     });
@@ -97,6 +97,10 @@ export async function PATCH(request: NextRequest) {
     let username = body.username != null
       ? String(body.username).trim().toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 32)
       : null;
+    let email =
+      body.email != null
+        ? String(body.email).trim().toLowerCase().slice(0, 120)
+        : null;
 
     if (username !== null) {
       if (username.length < 3) {
@@ -113,6 +117,15 @@ export async function PATCH(request: NextRequest) {
     if (displayName !== null) {
       if (!displayName) displayName = username || "User";
       await sql`UPDATE users SET display_name = ${displayName} WHERE id = ${parsed.userId}`;
+    }
+    if (email !== null) {
+      if (email === "") {
+        await sql`UPDATE users SET email = NULL WHERE id = ${parsed.userId}`;
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return NextResponse.json({ error: "Invalid email" }, { status: 400 });
+      } else {
+        await sql`UPDATE users SET email = ${email} WHERE id = ${parsed.userId}`;
+      }
     }
 
     const rows = await sql`

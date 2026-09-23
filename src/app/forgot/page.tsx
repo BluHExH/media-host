@@ -48,7 +48,7 @@ export default function ForgotPage() {
         <div className="mh-glass-strong p-8">
           <h1 className="text-2xl font-bold" style={{ color: "#1A2B3C" }}>Forgot password</h1>
           <p className="mt-2 text-sm" style={{ color: "#5a6f82" }}>
-            Enter the username and recovery email used on this account. If they match, you can set a new password.
+            Username + the recovery email saved on this account.
           </p>
           <form onSubmit={submit} className="mt-6 space-y-4">
             <div>
@@ -59,14 +59,24 @@ export default function ForgotPage() {
               <label className="mb-1.5 block text-xs font-semibold" style={{ color: "#5a6f82" }}>Recovery email</label>
               <input type="email" className="mh-input" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
             </div>
-            {error && <p className="rounded-xl border border-red-200 bg-red-50/90 px-3 py-2 text-sm text-red-700">{error}</p>}
+            {error && (
+              <div className="rounded-xl border border-red-200 bg-red-50/90 px-3 py-2 text-sm text-red-700 space-y-2">
+                <p>{error}</p>
+                {/no recovery email/i.test(error) && (
+                  <p className="text-xs text-red-800/90">
+                    <strong>What to do:</strong> If you still know the password →{" "}
+                    <Link href="/login" className="underline font-semibold">Sign in</Link>
+                    {" "}→ Profile → add recovery email. If you forgot the password too →{" "}
+                    <Link href="/login?tab=register" className="underline font-semibold">create a new account</Link>
+                    {" "}with email (old files stay on the old account only).
+                  </p>
+                )}
+              </div>
+            )}
             <button type="submit" disabled={loading} className="mh-btn mh-btn-primary h-12 w-full disabled:opacity-50">
               {loading ? "Checking…" : "Continue"}
             </button>
           </form>
-          <p className="mt-4 text-center text-xs" style={{ color: "#5a6f82" }}>
-            No email on account? You must have registered with one to recover.
-          </p>
         </div>
       </div>
     </div>
