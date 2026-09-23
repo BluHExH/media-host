@@ -177,6 +177,12 @@ export default function LibraryClient() {
                   <p className="text-[11px]" style={{ color: "#5a6f82" }}>{"📁 " + (file.album || "general") + " · " + fmt(file.size)}</p>
                   <div className="mt-2 flex flex-wrap gap-1">
                     <button type="button" className="rounded-full border bg-white/60 px-2 py-1 text-xs" onClick={() => navigator.clipboard.writeText(shareLink(file))}>Copy</button>
+                    {isImg(file.contentType) && (
+                      <>
+                        <a href={"/tools/remove-bg?url=" + encodeURIComponent(file.url)} className="rounded-full border bg-white/60 px-2 py-1 text-xs" style={{ color: "#0F4C81" }}>BG</a>
+                        <a href={"/tools/upscale?url=" + encodeURIComponent(file.url)} className="rounded-full border bg-white/60 px-2 py-1 text-xs" style={{ color: "#5b4bb4" }}>Upscale</a>
+                      </>
+                    )}
                     <button type="button" className="rounded-full border border-red-100 bg-white/60 px-2 py-1 text-xs text-red-500" onClick={() => del([file.url])}>Del</button>
                   </div>
                 </div>
@@ -237,6 +243,12 @@ export default function LibraryClient() {
             {isVid(preview.contentType) && <video src={preview.url} controls autoPlay className="mx-auto max-h-[60vh] w-full" />}
             {isAud(preview.contentType) && <audio src={preview.url} controls autoPlay className="w-full" />}
             {isHtmlFile(preview) && <iframe src={shareLink(preview)} className="h-[60vh] w-full rounded-xl bg-white" title="html" />}
+            {isImg(preview.contentType) && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <a href={"/tools/remove-bg?url=" + encodeURIComponent(preview.url)} className="mh-btn mh-btn-outline px-3 py-1.5 text-xs">Remove BG</a>
+                <a href={"/tools/upscale?url=" + encodeURIComponent(preview.url)} className="mh-btn mh-btn-outline px-3 py-1.5 text-xs">Upscale</a>
+              </div>
+            )}
             <p className="mt-3 break-all font-mono text-xs" style={{ color: "#5a6f82" }}>{shareLink(preview)}</p>
           </div>
         </div>

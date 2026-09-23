@@ -6,6 +6,23 @@ import { authFetch, clearAuth, hasSession, ensureSession, TK } from "@/lib/clien
 
 type Activity = { day: string; uploads: number; logins: number };
 
+function fmtBytes(n: number) {
+  if (!n || n < 0) return "0 B";
+  if (n < 1024) return n + " B";
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+  if (n < 1024 * 1024 * 1024) return (n / (1024 * 1024)).toFixed(2) + " MB";
+  return (n / (1024 * 1024 * 1024)).toFixed(2) + " GB";
+}
+
+function fmtDate(v: string | null | undefined) {
+  if (!v) return "Never";
+  try {
+    return new Date(v).toLocaleString();
+  } catch {
+    return String(v);
+  }
+}
+
 export default function ProfilePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -39,8 +56,11 @@ export default function ProfilePage() {
     setDisplayName(data.user?.displayName || data.user?.username || "");
     setUsername(data.user?.username || "");
     setEmail(data.user?.email || "");
-    setStats(data.stats || { files: 0, totalBytes: 0 });
-    setActivity(data.activity || []);
+    setStats({
+      files: Number(data.stats?.files) || 0,
+      totalBytes: Number(data.stats?.totalBytes) || 0,
+    });
+    setActivity(Array.isArray(data.activity) ? data.activity : []);
     setLoading(false);
   };
 
@@ -83,7 +103,7 @@ export default function ProfilePage() {
     }
     if (data.token) localStorage.setItem(TK, data.token);
     setUser(data.user);
-    setOk("Profile saved (email used for password recovery)");
+    setOk("Profile saved");
   };
 
   const onAvatar = async (list: FileList | null) => {
@@ -126,7 +146,7 @@ export default function ProfilePage() {
     return <div className="mh-mesh flex min-h-screen items-center justify-center text-[#5a6f82]">Loading profile…</div>;
   }
 
-  const maxAct = Math.max(1, ...activity.map((a) => a.uploads + a.logins));
+  const maxAct = Math.max(1, ...activity.map((a) => (a.uploads || 0) + (a.logins || 0)));
 
   return (
     <div className="mh-mesh min-h-screen">
@@ -153,10 +173,23 @@ export default function ProfilePage() {
               )}
             </button>
             <input ref={avatarRef} type="file" accept="image/*" className="hidden" onChange={(e) => onAvatar(e.target.files)} />
-            <div>
+            <div className="min-w-0 flex-1">
               <h1 className="text-xl font-bold" style={{ color: "#1A2B3C" }}>{user?.displayName || user?.username}</h1>
               <p className="text-sm" style={{ color: "#5a6f82" }}>@{user?.username}</p>
-              <p className="mt-1 text-xs" style={{ color: "#5a6f82" }}>{stats.files} files · click avatar to change photo</p>
+              <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3" style={{ color: "#5a6f82" }}>
+                <div className="rounded-xl bg-white/50 px-3 py-2">
+                  <p className="font-semibold text-[#1A2B3C]">{stats.files}</p>
+                  <p>Files</p>
+                </div>
+                <div className="rounded-xl bg-white/50 px-3 py-2">
+                  <p className="font-semibold text-[#1A2B3C]">{fmtBytes(stats.totalBytes)}</p>
+                  <p>Uploaded</p>
+                </div>
+                <div className="col-span-2 rounded-xl bg-white/50 px-3 py-2 sm:col-span-1">
+                  <p className="font-semibold text-[#1A2B3C] text-[11px] leading-snug">{fmtDate(user?.lastLoginAt)}</p>
+                  <p>Last login</p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -172,7 +205,6 @@ export default function ProfilePage() {
             <div>
               <label className="mb-1.5 block text-xs font-semibold" style={{ color: "#5a6f82" }}>Recovery email</label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mh-input" placeholder="you@example.com" />
-              <p className="mt-1 text-[11px]" style={{ color: "#5a6f82" }}>Required for Forgot password</p>
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
             {ok && <p className="text-sm text-emerald-700">{ok}</p>}
@@ -183,17 +215,29 @@ export default function ProfilePage() {
         </div>
 
         <div className="mh-glass mt-6 p-6">
-          <h2 className="text-sm font-semibold" style={{ color: "#1A2B3C" }}>Activity (14 days)</h2>
-          <div className="mt-4 flex h-28 items-end gap-1">
-            {activity.map((a) => {
-              const h = Math.round(((a.uploads + a.logins) / maxAct) * 100);
-              return (
-                <div key={a.day} className="flex flex-1 flex-col items-center gap-1" title={`${a.day}: ${a.uploads} up · ${a.logins} login`}>
-                  <div className="w-full rounded-t bg-gradient-to-t from-[#0F4C81] to-[#82DBD8]" style={{ height: `${Math.max(4, h)}%` }} />
-                  <span className="text-[9px]" style={{ color: "#5a6f82" }}>{a.day.slice(8)}</span>
-                </div>
-              );
-            })}
+          <h2 className="text-sm font-semibold" style={{ color: "#1A2B3C" }}>Activity (last 14 days)</h2>
+          <p className="mt-1 text-[11px]" style={{ color: "#5a6f82" }}>Uploads + logins per day</p>
+          <div className="mt-4 flex h-36 items-end gap-1">
+            {activity.length === 0 ? (
+              <p className="w-full text-center text-xs" style={{ color: "#5a6f82" }}>No activity yet</p>
+            ) : (
+              activity.map((a) => {
+                const total = (a.uploads || 0) + (a.logins || 0);
+                const px = Math.max(total > 0 ? 8 : 2, Math.round((total / maxAct) * 120));
+                return (
+                  <div key={a.day} className="flex flex-1 flex-col items-center justify-end gap-1" title={`${a.day}: ${a.uploads} uploads, ${a.logins} logins`}>
+                    <div
+                      className="w-full max-w-[28px] rounded-t-md"
+                      style={{
+                        height: px + "px",
+                        background: total ? "linear-gradient(180deg,#82DBD8,#0F4C81)" : "rgba(15,76,129,0.12)",
+                      }}
+                    />
+                    <span className="text-[9px]" style={{ color: "#5a6f82" }}>{String(a.day).slice(8)}</span>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
 
