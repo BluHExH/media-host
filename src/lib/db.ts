@@ -60,6 +60,16 @@ export async function ensureSchema() {
     key TEXT PRIMARY KEY,
     value TEXT
   )`;
+  await sql`CREATE TABLE IF NOT EXISTS share_links (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    token TEXT UNIQUE NOT NULL,
+    media_url TEXT NOT NULL,
+    password_hash TEXT,
+    expires_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_share_links_token ON share_links(token)`;
 }
 
 export function getClientIp(request: NextRequest): string {
@@ -94,133 +104,149 @@ export async function checkRateLimit(
       await sql`UPDATE rate_limits SET count = 1, window_start = NOW() WHERE key = ${key}`;
       return { ok: true, remaining: limit - 1 };
     }
-    if (row.count >= limit) return { ok: false, remaining: 0 };
-    await sql`UPDATE rate_limits SET count = count + 1 WHERE key = ${key}`;
-    return { ok: true, remaining: limit - row.count - 1 };
+    const count = Number(row.count) || 0;
+    if (count >= limit) return { ok: false, remaining: 0 };
+    await sql`UPDATE rate_limits SET count = ${count + 1} WHERE key = ${key}`;
+    return { ok: true, remaining: limit - count - 1 };
   } catch {
     return { ok: true, remaining: limit };
   }
 }
 
 export async function logAuthEvent(opts: {
-  userId?: number | null;
-  username?: string | null;
-  ip: string;
-  userAgent: string;
-  action: "register" | "login" | "login_fail" | "refresh";
-  success?: boolean;
+  userId?: number;
+  username?: string;
+  ip?: string;
+  userAgent?: string;
+  action: string;
+  success: boolean;
 }) {
   try {
     const sql = getSql();
-    await sql`INSERT INTO login_logs (user_id, username, ip, user_agent, action, success)
-      VALUES (${opts.userId ?? null}, ${opts.username ?? null}, ${opts.ip}, ${opts.userAgent}, ${opts.action}, ${opts.success !== false})`;
+    await sql`
+      INSERT INTO login_logs (user_id, username, ip, user_agent, action, success)
+      VALUES (
+        ${opts.userId ?? null},
+        ${opts.username ?? null},
+        ${opts.ip ?? null},
+        ${opts.userAgent ?? null},
+        ${opts.action},
+        ${opts.success}
+      )
+    `;
   } catch {}
 }
 
+const te = new TextEncoder();
+
+async function hmacKey() {
+  const secret = process.env.AUTH_SECRET || process.env.BLOB_READ_WRITE_TOKEN || "dev-secret-change-me";
+  return crypto.subtle.importKey(
+    "raw",
+    te.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign", "verify"]
+  );
+}
+
+function b64url(buf: ArrayBuffer | Uint8Array): string {
+  const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  let s = "";
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function fromB64url(s: string): Uint8Array {
+  const pad = s.length % 4 === 0 ? "" : "=".repeat(4 - (s.length % 4));
+  const b = atob(s.replace(/-/g, "+").replace(/_/g, "/") + pad);
+  const out = new Uint8Array(b.length);
+  for (let i = 0; i < b.length; i++) out[i] = b.charCodeAt(i);
+  return out;
+}
+
 export async function hashPassword(password: string): Promise<string> {
-  const enc = new TextEncoder();
   const salt = crypto.getRandomValues(new Uint8Array(16));
-  const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" }, keyMaterial, 256);
-  const hash = new Uint8Array(bits);
-  return `pbkdf2:${btoa(String.fromCharCode(...salt))}:${btoa(String.fromCharCode(...hash))}`;
+  const key = await crypto.subtle.importKey("raw", te.encode(password), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" },
+    key,
+    256
+  );
+  return `pbkdf2:100000:${b64url(salt)}:${b64url(bits)}`;
 }
 
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   try {
-    const [algo, saltB64, hashB64] = stored.split(":");
-    if (algo !== "pbkdf2") return false;
-    const salt = Uint8Array.from(atob(saltB64), (c) => c.charCodeAt(0));
-    const expected = Uint8Array.from(atob(hashB64), (c) => c.charCodeAt(0));
-    const enc = new TextEncoder();
-    const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
-    const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" }, keyMaterial, 256);
-    const actual = new Uint8Array(bits);
-    if (actual.length !== expected.length) return false;
-    let ok = 0;
-    for (let i = 0; i < actual.length; i++) ok |= actual[i] ^ expected[i];
-    return ok === 0;
+    const parts = stored.split(":");
+    if (parts[0] !== "pbkdf2" || parts.length < 4) return false;
+    const iterations = parseInt(parts[1], 10) || 100000;
+    const salt = fromB64url(parts[2]);
+    const expected = fromB64url(parts[3]);
+    const key = await crypto.subtle.importKey("raw", te.encode(password), "PBKDF2", false, ["deriveBits"]);
+    const bits = await crypto.subtle.deriveBits(
+      { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
+      key,
+      256
+    );
+    const got = new Uint8Array(bits);
+    if (got.length !== expected.length) return false;
+    let diff = 0;
+    for (let i = 0; i < got.length; i++) diff |= got[i] ^ expected[i];
+    return diff === 0;
   } catch {
     return false;
   }
 }
 
-async function hmacSign(payload: string): Promise<string> {
-  const secret = process.env.AUTH_SECRET || process.env.MEDIA_PASSWORD || process.env.DATABASE_URL || "media-host-fallback";
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey("raw", enc.encode(secret.slice(0, 64)), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(payload));
-  return btoa(String.fromCharCode(...new Uint8Array(sig)));
-}
-
-async function sha256Hex(text: string): Promise<string> {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
 export async function makeToken(userId: number, username: string): Promise<string> {
-  const exp = Date.now() + 30 * 24 * 60 * 60 * 1000;
-  const payload = `${userId}:${username}:${exp}`;
-  return `${btoa(payload)}.${await hmacSign(payload)}`;
+  const exp = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7;
+  const payload = b64url(te.encode(JSON.stringify({ userId, username, exp })));
+  const key = await hmacKey();
+  const sig = b64url(await crypto.subtle.sign("HMAC", key, te.encode(payload)));
+  return `${payload}.${sig}`;
 }
 
-export async function parseToken(token: string): Promise<{ userId: number; username: string } | null> {
+export async function parseToken(
+  token: string
+): Promise<{ userId: number; username: string } | null> {
   try {
-    const [payloadB64, sig] = token.split(".");
-    if (!payloadB64 || !sig) return null;
-    const payload = atob(payloadB64);
-    const expected = await hmacSign(payload);
-    if (sig.length !== expected.length) return null;
-    let diff = 0;
-    for (let i = 0; i < sig.length; i++) diff |= sig.charCodeAt(i) ^ expected.charCodeAt(i);
-    if (diff !== 0) return null;
-    const [idStr, username, expStr] = payload.split(":");
-    const userId = parseInt(idStr, 10);
-    const exp = parseInt(expStr, 10);
-    if (!userId || !username || !exp || Date.now() > exp) return null;
-    return { userId, username };
+    const [payload, sig] = token.split(".");
+    if (!payload || !sig) return null;
+    const key = await hmacKey();
+    const expected = b64url(await crypto.subtle.sign("HMAC", key, te.encode(payload)));
+    if (expected !== sig) return null;
+    const data = JSON.parse(new TextDecoder().decode(fromB64url(payload))) as {
+      userId: number;
+      username: string;
+      exp: number;
+    };
+    if (!data.exp || data.exp * 1000 < Date.now()) return null;
+    return { userId: data.userId, username: data.username };
   } catch {
     return null;
   }
 }
 
 export async function makeRefreshToken(userId: number): Promise<string> {
-  const raw = `${userId}.${Date.now()}.${crypto.randomUUID()}`;
-  const token = btoa(raw).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  const token_hash = await sha256Hex(token);
-  const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const raw = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const hash = b64url(
+    await crypto.subtle.digest("SHA-256", te.encode(raw))
+  );
+  const exp = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30);
   const sql = getSql();
-  await sql`INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (${userId}, ${token_hash}, ${expires.toISOString()})`;
-  return token;
-}
-
-export async function rotateRefreshToken(oldToken: string): Promise<{ userId: number; accessToken: string; refreshToken: string } | null> {
-  const token_hash = await sha256Hex(oldToken);
-  const sql = getSql();
-  const rows = await sql`
-    SELECT user_id FROM refresh_tokens
-    WHERE token_hash = ${token_hash} AND revoked = false AND expires_at > NOW()
-    LIMIT 1
+  await sql`
+    INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+    VALUES (${userId}, ${hash}, ${exp.toISOString()})
   `;
-  if (!rows.length) return null;
-  const userId = (rows[0] as { user_id: number }).user_id;
-  await sql`UPDATE refresh_tokens SET revoked = true WHERE token_hash = ${token_hash}`;
-  const users = await sql`SELECT username FROM users WHERE id = ${userId} LIMIT 1`;
-  if (!users.length) return null;
-  const username = (users[0] as { username: string }).username;
-  return {
-    userId,
-    accessToken: await makeToken(userId, username),
-    refreshToken: await makeRefreshToken(userId),
-  };
+  return raw;
 }
 
 export async function purgeExpired() {
   try {
     const sql = getSql();
     await sql`DELETE FROM media_meta WHERE expires_at IS NOT NULL AND expires_at < NOW()`;
+    await sql`DELETE FROM share_links WHERE expires_at IS NOT NULL AND expires_at < NOW()`;
     await sql`DELETE FROM refresh_tokens WHERE expires_at < NOW() OR revoked = true`;
-  } catch (e) {
-    console.error("purgeExpired", e);
-  }
+  } catch {}
 }
