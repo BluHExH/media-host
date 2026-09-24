@@ -1,11 +1,10 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 export default function ResetPage() {
   const router = useRouter();
-  const search = useSearchParams();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPass, setShowPass] = useState(false);
@@ -15,13 +14,16 @@ export default function ResetPage() {
   const [token, setToken] = useState("");
 
   useEffect(() => {
-    const fromQuery = search.get("token") || "";
+    let fromQuery = "";
+    try {
+      fromQuery = new URLSearchParams(window.location.search).get("token") || "";
+    } catch {}
     const fromSession = sessionStorage.getItem("mh_reset_token") || "";
     const t = fromQuery || fromSession;
     if (fromQuery) sessionStorage.setItem("mh_reset_token", fromQuery);
     setToken(t);
     if (!t) setError("No reset session. Start from Forgot password.");
-  }, [search]);
+  }, []);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,7 +84,7 @@ export default function ResetPage() {
                   required
                   autoComplete="new-password"
                 />
-                <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-xs" style={{ color: "#5a6f82" }} onClick={() => setShowPass((v) => !v)}>
+                <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-xs" style={{ color: "#5a6f82" }} onClick={() => setShowPass((v) => !v)}>
                   {showPass ? "Hide" : "Show"}
                 </button>
               </div>
@@ -100,7 +102,7 @@ export default function ResetPage() {
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
             {ok && <p className="text-sm text-emerald-700">{ok}</p>}
-            <button type="submit" disabled={loading || !token} className="mh-btn mh-btn-primary h-12 w-full disabled:opacity-50">
+            <button type="submit" disabled={loading || !token} className="mh-btn mh-btn-primary h-12 w-full cursor-pointer disabled:opacity-50">
               {loading ? "Saving…" : "Update password"}
             </button>
           </form>
