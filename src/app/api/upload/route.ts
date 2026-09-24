@@ -1,6 +1,6 @@
 import { put } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, parseToken, checkRateLimit, getClientIp } from "@/lib/db";
+import { getSql, parseToken, checkRateLimit, getClientIp, ensureSchema } from "@/lib/db";
 import {
   computeExpiry,
   guessMime,
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     const ip = getClientIp(request);
     const rl = await checkRateLimit(`upload:${ip}`, 100, 60);
     if (!rl.ok) {
-      return NextResponse.json({ error: "Upload rate limit. Slow down." }, { status: 429 });
+      return NextResponse.json({ error: "Upload rate limit. Slow down and try again." }, { status: 429 });
     }
 
     const token = request.headers.get("x-auth-token") || "";
@@ -30,9 +30,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    await ensureSchema();
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
-    if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
+    if (!file) return NextResponse.json({ error: "No file selected" }, { status: 400 });
 
     const album = sanitizeAlbum(formData.get("album") as string);
     const expiresAt = computeExpiry(formData.get("expiry") as string | null);
@@ -44,10 +45,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: disabled }, { status: 403 });
     }
     if (!isAllowedMime(mime)) {
-      return NextResponse.json({ error: "Invalid type — images and HTML only" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Unsupported type. Use image, video, audio, or HTML." },
+        { status: 400 }
+      );
     }
     if (file.size > MAX_UPLOAD_BYTES) {
-      return NextResponse.json({ error: `Max ${MAX_UPLOAD_LABEL}` }, { status: 400 });
+      return NextResponse.json(
+        { error: `File too large (max ${MAX_UPLOAD_LABEL}). Your file: ${(file.size / (1024 * 1024)).toFixed(1)} MB` },
+        { status: 400 }
+      );
     }
 
     const blob = await put(`${album}/${file.name}`, file, {
@@ -70,30 +77,23 @@ export async function POST(request: NextRequest) {
           ${expiresAt ? expiresAt.toISOString() : null},
           ${isPublic}
         )
-        ON CONFLICT (url) DO NOTHING
       `;
     } catch (dbErr) {
-      console.error("media_meta insert failed", dbErr);
+      console.error("media_meta insert", dbErr);
     }
 
-    const previewUrl = mime.startsWith("text/html")
-      ? `/api/render?u=${encodeURIComponent(blob.url)}`
-      : blob.url;
-
+    const isHtml = mime.startsWith("text/html");
     return NextResponse.json({
       url: blob.url,
-      previewUrl,
       pathname: blob.pathname,
-      contentType: mime.startsWith("text/html") ? "text/html; charset=utf-8" : mime,
+      contentType: mime,
       size: file.size,
-      uploadedAt: new Date().toISOString(),
       album,
-      expiresAt: expiresAt ? expiresAt.toISOString() : null,
-      isPublic,
+      previewUrl: isHtml ? `/api/render?u=${encodeURIComponent(blob.url)}` : blob.url,
     });
   } catch (e) {
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : "fail" },
+      { error: e instanceof Error ? e.message : "Upload failed" },
       { status: 500 }
     );
   }
