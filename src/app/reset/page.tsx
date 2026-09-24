@@ -1,10 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function ResetPage() {
   const router = useRouter();
+  const search = useSearchParams();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPass, setShowPass] = useState(false);
@@ -14,10 +15,13 @@ export default function ResetPage() {
   const [token, setToken] = useState("");
 
   useEffect(() => {
-    const t = sessionStorage.getItem("mh_reset_token") || "";
+    const fromQuery = search.get("token") || "";
+    const fromSession = sessionStorage.getItem("mh_reset_token") || "";
+    const t = fromQuery || fromSession;
+    if (fromQuery) sessionStorage.setItem("mh_reset_token", fromQuery);
     setToken(t);
     if (!t) setError("No reset session. Start from Forgot password.");
-  }, []);
+  }, [search]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,53 +64,46 @@ export default function ResetPage() {
           <Link href="/login" className="text-sm" style={{ color: "#3BACB6" }}>Sign in</Link>
         </div>
       </header>
-      <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 py-12">
+      <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 py-14">
         <div className="mh-glass-strong p-8">
-          <h1 className="text-2xl font-bold" style={{ color: "#1A2B3C" }}>Set new password</h1>
-          <p className="mt-2 text-sm" style={{ color: "#5a6f82" }}>Choose a strong password (min 8 characters).</p>
-          <form onSubmit={submit} className="mt-6 space-y-4">
+          <h1 className="text-xl font-bold" style={{ color: "#1A2B3C" }}>New password</h1>
+          <p className="mt-3 text-sm leading-relaxed" style={{ color: "#5a6f82" }}>
+            Choose a strong password (min 8 characters).
+          </p>
+          <form onSubmit={submit} className="mt-8 space-y-5">
             <div>
-              <label className="mb-1.5 block text-xs font-semibold" style={{ color: "#5a6f82" }}>New password</label>
+              <label className="mb-2 block text-xs font-semibold" style={{ color: "#5a6f82" }}>New password</label>
               <div className="relative">
                 <input
                   type={showPass ? "text" : "password"}
                   className="mh-input pr-12"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="new-password"
                   required
+                  autoComplete="new-password"
                 />
-                <button
-                  type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2"
-                  style={{ color: "#5a6f82" }}
-                  onClick={() => setShowPass((s) => !s)}
-                  tabIndex={-1}
-                >
-                  {showPass ? "🙈" : "👁"}
+                <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-xs" style={{ color: "#5a6f82" }} onClick={() => setShowPass((v) => !v)}>
+                  {showPass ? "Hide" : "Show"}
                 </button>
               </div>
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-semibold" style={{ color: "#5a6f82" }}>Confirm password</label>
+              <label className="mb-2 block text-xs font-semibold" style={{ color: "#5a6f82" }}>Confirm</label>
               <input
                 type={showPass ? "text" : "password"}
                 className="mh-input"
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
-                autoComplete="new-password"
                 required
+                autoComplete="new-password"
               />
             </div>
-            {error && <p className="rounded-xl border border-red-200 bg-red-50/90 px-3 py-2 text-sm text-red-700">{error}</p>}
-            {ok && <p className="rounded-xl border border-emerald-200 bg-emerald-50/90 px-3 py-2 text-sm text-emerald-800">{ok}</p>}
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            {ok && <p className="text-sm text-emerald-700">{ok}</p>}
             <button type="submit" disabled={loading || !token} className="mh-btn mh-btn-primary h-12 w-full disabled:opacity-50">
               {loading ? "Saving…" : "Update password"}
             </button>
           </form>
-          <p className="mt-4 text-center text-xs">
-            <Link href="/forgot" className="underline" style={{ color: "#0F4C81" }}>Start over</Link>
-          </p>
         </div>
       </div>
     </div>
