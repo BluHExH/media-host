@@ -3,14 +3,14 @@
 export const MAX_UPLOAD_BYTES = 500 * 1024 * 1024; // 500 MB
 export const MAX_UPLOAD_LABEL = "500 MB";
 
-/** Video & audio hosting temporarily off */
-export const VIDEO_ENABLED = false;
-export const AUDIO_ENABLED = false;
+/** Video & audio hosting enabled with same size cap */
+export const VIDEO_ENABLED = true;
+export const AUDIO_ENABLED = true;
 
 export const VIDEO_DISABLED_MSG =
-  "Video hosting is under development. Coming soon — please upload images or HTML for now.";
+  "Video hosting is temporarily disabled.";
 export const AUDIO_DISABLED_MSG =
-  "Audio hosting is under development. Coming soon — please upload images or HTML for now.";
+  "Audio hosting is temporarily disabled.";
 
 export function guessMime(name: string, type: string): string {
   if (type && type.startsWith("image/")) return type;
@@ -64,24 +64,24 @@ export function disabledMediaMessage(mime: string): string | null {
   return null;
 }
 
-/** Alias used by client-upload */
 export const mediaDisabledMessage = disabledMediaMessage;
 
-export function computeExpiry(daysRaw: string | null | undefined): Date | null {
-  if (!daysRaw || daysRaw === "never" || daysRaw === "0") return null;
-  const days = parseInt(String(daysRaw), 10);
-  if (!days || days < 1) return null;
-  const d = new Date();
-  d.setDate(d.getDate() + Math.min(days, 3650));
-  return d;
+export function sanitizeAlbum(raw: string | null | undefined): string {
+  const a = String(raw || "general")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-_]/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 40);
+  return a || "general";
 }
 
-export function sanitizeAlbum(raw: string | null | undefined): string {
-  return (
-    String(raw || "general")
-      .toLowerCase()
-      .replace(/[^a-z0-9-_]/g, "-")
-      .replace(/-+/g, "-")
-      .slice(0, 40) || "general"
-  );
+export function computeExpiry(expiry: string | null | undefined): Date | null {
+  const e = String(expiry || "never").toLowerCase();
+  if (!e || e === "never") return null;
+  const days = parseInt(e, 10);
+  if (!Number.isFinite(days) || days <= 0) return null;
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + days);
+  return d;
 }
