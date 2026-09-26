@@ -153,10 +153,11 @@ async function hmacKey() {
 function b64url(buf: ArrayBuffer | Uint8Array): string {
   const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
   let s = "";
-  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]!);
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+/** Always returns a standalone ArrayBuffer-backed Uint8Array (TS BufferSource-safe). */
 function fromB64url(s: string): Uint8Array {
   const pad = s.length % 4 === 0 ? "" : "=".repeat(4 - (s.length % 4));
   const b = atob(s.replace(/-/g, "+").replace(/_/g, "/") + pad);
@@ -165,11 +166,28 @@ function fromB64url(s: string): Uint8Array {
   return out;
 }
 
+function asBufferSource(u8: Uint8Array): BufferSource {
+  const copy = new Uint8Array(u8.byteLength);
+  copy.set(u8);
+  return copy;
+}
+
 export async function hashPassword(password: string): Promise<string> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
-  const key = await crypto.subtle.importKey("raw", te.encode(password), "PBKDF2", false, ["deriveBits"]);
+  const key = await crypto.subtle.importKey(
+    "raw",
+    te.encode(password),
+    "PBKDF2",
+    false,
+    ["deriveBits"]
+  );
   const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" },
+    {
+      name: "PBKDF2",
+      salt: asBufferSource(salt),
+      iterations: 100000,
+      hash: "SHA-256",
+    },
     key,
     256
   );
@@ -180,19 +198,30 @@ export async function verifyPassword(password: string, stored: string): Promise<
   try {
     const parts = stored.split(":");
     if (parts[0] !== "pbkdf2" || parts.length < 4) return false;
-    const iterations = parseInt(parts[1], 10) || 100000;
-    const salt = fromB64url(parts[2]);
-    const expected = fromB64url(parts[3]);
-    const key = await crypto.subtle.importKey("raw", te.encode(password), "PBKDF2", false, ["deriveBits"]);
+    const iterations = parseInt(parts[1]!, 10) || 100000;
+    const salt = fromB64url(parts[2]!);
+    const expected = fromB64url(parts[3]!);
+    const key = await crypto.subtle.importKey(
+      "raw",
+      te.encode(password),
+      "PBKDF2",
+      false,
+      ["deriveBits"]
+    );
     const bits = await crypto.subtle.deriveBits(
-      { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
+      {
+        name: "PBKDF2",
+        salt: asBufferSource(salt),
+        iterations,
+        hash: "SHA-256",
+      },
       key,
       256
     );
     const got = new Uint8Array(bits);
     if (got.length !== expected.length) return false;
     let diff = 0;
-    for (let i = 0; i < got.length; i++) diff |= got[i] ^ expected[i];
+    for (let i = 0; i < got.length; i++) diff |= got[i]! ^ expected[i]!;
     return diff === 0;
   } catch {
     return false;
