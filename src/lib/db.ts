@@ -230,9 +230,7 @@ export async function parseToken(
 
 export async function makeRefreshToken(userId: number): Promise<string> {
   const raw = b64url(crypto.getRandomValues(new Uint8Array(32)));
-  const hash = b64url(
-    await crypto.subtle.digest("SHA-256", te.encode(raw))
-  );
+  const hash = b64url(await crypto.subtle.digest("SHA-256", te.encode(raw)));
   const exp = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30);
   const sql = getSql();
   await sql`
@@ -240,6 +238,32 @@ export async function makeRefreshToken(userId: number): Promise<string> {
     VALUES (${userId}, ${hash}, ${exp.toISOString()})
   `;
   return raw;
+}
+
+export async function rotateRefreshToken(
+  raw: string
+): Promise<{ userId: number; accessToken: string; refreshToken: string } | null> {
+  try {
+    const hash = b64url(await crypto.subtle.digest("SHA-256", te.encode(raw)));
+    const sql = getSql();
+    const rows = await sql`
+      SELECT rt.user_id, u.username
+      FROM refresh_tokens rt
+      JOIN users u ON u.id = rt.user_id
+      WHERE rt.token_hash = ${hash}
+        AND rt.revoked = false
+        AND rt.expires_at > NOW()
+      LIMIT 1
+    `;
+    if (!rows.length) return null;
+    const row = rows[0] as { user_id: number; username: string };
+    await sql`UPDATE refresh_tokens SET revoked = true WHERE token_hash = ${hash}`;
+    const accessToken = await makeToken(row.user_id, row.username);
+    const refreshToken = await makeRefreshToken(row.user_id);
+    return { userId: row.user_id, accessToken, refreshToken };
+  } catch {
+    return null;
+  }
 }
 
 export async function purgeExpired() {
