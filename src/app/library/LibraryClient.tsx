@@ -63,6 +63,7 @@ export default function LibraryClient() {
   const [shareUrl, setShareUrl] = useState("");
   const [shareBusy, setShareBusy] = useState(false);
   const [moveAlbum, setMoveAlbum] = useState("");
+  const [recoverBusy, setRecoverBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -144,6 +145,32 @@ export default function LibraryClient() {
     setShareBusy(false);
     if (!res.ok) { setError(data.error || "Share failed"); return; }
     setShareUrl(data.shareUrl || "");
+  };
+
+  const recoverFolder = async (prefix = "shahana") => {
+    if (recoverBusy) return;
+    if (!confirm('Recover files from Blob folder "' + prefix + '"? Safe — nothing is deleted.')) return;
+    setRecoverBusy(true);
+    setError("");
+    try {
+      const res = await authFetch("/api/media/recover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prefix }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "Recover failed");
+        return;
+      }
+      setError(data.message || ("Recovered " + (data.restored || 0) + " files"));
+      if (data.restored > 0) {
+        setFolderFilter(prefix);
+        await load();
+      }
+    } finally {
+      setRecoverBusy(false);
+    }
   };
 
   const isImg = (t: string) => t.startsWith("image/");
@@ -244,6 +271,15 @@ export default function LibraryClient() {
             <option value="audio">Audio</option>
             <option value="html">HTML</option>
           </select>
+          <button
+            type="button"
+            disabled={recoverBusy}
+            className="mh-btn mh-btn-outline cursor-pointer px-3 py-1.5 text-xs"
+            onClick={() => recoverFolder("shahana")}
+            title="Re-link orphaned Blob files in shahana folder"
+          >
+            {recoverBusy ? "Recovering…" : "Recover shahana"}
+          </button>
           {selected.size > 0 && (
             <>
               <button type="button" className="mh-btn mh-btn-outline px-3 py-1 text-xs" onClick={() => del(Array.from(selected))}>
@@ -322,7 +358,7 @@ export default function LibraryClient() {
                   <div className="mh-card-body p-3.5">
                     <p className="truncate text-sm font-medium leading-snug">{nm(file)}</p>
                     <p className="mt-1.5 text-[11px] leading-relaxed" style={{ color: "#5a6f82" }}>
-                      {"📁 " + (file.album || "general") + " · " + fmt(file.size)}
+                      {"\ud83d\udcc1 " + (file.album || "general") + " \u00b7 " + fmt(file.size)}
                     </p>
                     <div className="mh-card-actions mt-2.5 flex flex-wrap gap-1.5">
                       <button type="button" className="cursor-pointer rounded-full border bg-white/60 px-2 py-1 text-xs" onClick={() => navigator.clipboard.writeText(shareLink(file))}>Copy</button>
@@ -347,7 +383,7 @@ export default function LibraryClient() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="mh-glass-strong w-full max-w-md p-6">
             <h2 className="text-lg font-semibold" style={{ color: "#1A2B3C" }}>{`Upload ${pending.length} file(s)`}</h2>
-            <p className="mt-2 text-xs leading-relaxed" style={{ color: "#5a6f82" }}>Images, video, audio, HTML · max 500 MB each</p>
+            <p className="mt-2 text-xs leading-relaxed" style={{ color: "#5a6f82" }}>Images, video, audio, HTML \u00b7 max 500 MB each</p>
             <label className="mt-4 block text-xs font-semibold" style={{ color: "#5a6f82" }}>Folder</label>
             <select value={modalAlbum} onChange={(e) => setModalAlbum(e.target.value)} className="mh-input mt-1 cursor-pointer">
               {albums.map((a) => <option key={a} value={a}>{a}</option>)}
@@ -376,7 +412,7 @@ export default function LibraryClient() {
               <input type="checkbox" checked={modalPublic} onChange={(e) => setModalPublic(e.target.checked)} /> Public gallery
             </label>
             <div className="mt-5 flex gap-2">
-              <button type="button" disabled={uploading} className="mh-btn mh-btn-primary flex-1 cursor-pointer py-2.5" onClick={confirmUpload}>{uploading ? "Uploading…" : "Upload"}</button>
+              <button type="button" disabled={uploading} className="mh-btn mh-btn-primary flex-1 cursor-pointer py-2.5" onClick={confirmUpload}>{uploading ? "Uploading\u2026" : "Upload"}</button>
               <button type="button" disabled={uploading} className="mh-btn mh-btn-outline cursor-pointer px-4" onClick={() => { setPending(null); if (ref.current) ref.current.value = ""; }}>Cancel</button>
             </div>
           </div>
@@ -405,7 +441,7 @@ export default function LibraryClient() {
             )}
             <div className="mt-5 flex gap-2">
               <button type="button" disabled={shareBusy} className="mh-btn mh-btn-primary flex-1 cursor-pointer py-2.5" onClick={createShare}>
-                {shareBusy ? "Creating…" : shareUrl ? "Create another" : "Create link"}
+                {shareBusy ? "Creating\u2026" : shareUrl ? "Create another" : "Create link"}
               </button>
               <button type="button" className="mh-btn mh-btn-outline cursor-pointer px-4" onClick={() => setShareFile(null)}>Close</button>
             </div>
