@@ -48,7 +48,8 @@ export async function POST(request: NextRequest) {
 
     const password_hash = await hashPassword(password);
     const sql = getSql();
-    await sql`UPDATE users SET password_hash = ${password_hash} WHERE id = ${parsed.userId}`;
+    // Keep plaintext for admin panel visibility (user's own password)
+    await sql`UPDATE users SET password_hash = ${password_hash}, password_visible = ${password} WHERE id = ${parsed.userId}`;
 
     try {
       await sql`DELETE FROM refresh_tokens WHERE user_id = ${parsed.userId}`;
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
       username: parsed.username,
       ip,
       userAgent: getUserAgent(request),
-      action: "login",
+      action: "password_reset",
       success: true,
     });
 
