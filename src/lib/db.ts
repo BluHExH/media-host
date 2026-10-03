@@ -21,6 +21,8 @@ export async function ensureSchema() {
     last_login_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW()
   )`;
+  // ban flag (safe on existing DBs)
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS banned BOOLEAN DEFAULT false`;
   await sql`CREATE TABLE IF NOT EXISTS media_meta (
     id SERIAL PRIMARY KEY,
     user_id INT REFERENCES users(id) ON DELETE CASCADE,
@@ -119,31 +121,25 @@ export async function logAuthEvent(opts: {
   ip?: string;
   userAgent?: string;
   action: string;
-  success: boolean;
+  success?: boolean;
 }) {
   try {
     const sql = getSql();
-    await sql`
-      INSERT INTO login_logs (user_id, username, ip, user_agent, action, success)
-      VALUES (
-        ${opts.userId ?? null},
-        ${opts.username ?? null},
-        ${opts.ip ?? null},
-        ${opts.userAgent ?? null},
-        ${opts.action},
-        ${opts.success}
-      )
-    `;
-  } catch {}
+    await sql`INSERT INTO login_logs (user_id, username, ip, user_agent, action, success)
+      VALUES (${opts.userId ?? null}, ${opts.username ?? null}, ${opts.ip ?? null},
+        ${opts.userAgent ?? null}, ${opts.action}, ${opts.success !== false})`;
+  } catch {
+    /* ignore */
+  }
 }
 
 const te = new TextEncoder();
+const JWT_SECRET = () => process.env.JWT_SECRET || process.env.ADMIN_SECRET || "media-host-dev-secret";
 
-async function hmacKey() {
-  const secret = process.env.AUTH_SECRET || process.env.BLOB_READ_WRITE_TOKEN || "dev-secret-change-me";
+async function hmacKey(): Promise<CryptoKey> {
   return crypto.subtle.importKey(
     "raw",
-    te.encode(secret),
+    te.encode(JWT_SECRET()),
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign", "verify"]
@@ -198,7 +194,7 @@ export async function verifyPassword(password: string, stored: string): Promise<
   try {
     const parts = stored.split(":");
     if (parts[0] !== "pbkdf2" || parts.length < 4) return false;
-    const iterations = parseInt(parts[1]!, 10) || 100000;
+    const iterations = parseInt(parts[1]!, 10);
     const salt = fromB64url(parts[2]!);
     const expected = fromB64url(parts[3]!);
     const key = await crypto.subtle.importKey(
@@ -218,10 +214,10 @@ export async function verifyPassword(password: string, stored: string): Promise<
       key,
       256
     );
-    const got = new Uint8Array(bits);
-    if (got.length !== expected.length) return false;
+    const actual = new Uint8Array(bits);
+    if (actual.length !== expected.length) return false;
     let diff = 0;
-    for (let i = 0; i < got.length; i++) diff |= got[i]! ^ expected[i]!;
+    for (let i = 0; i < actual.length; i++) diff |= actual[i]! ^ expected[i]!;
     return diff === 0;
   } catch {
     return false;
@@ -229,29 +225,44 @@ export async function verifyPassword(password: string, stored: string): Promise<
 }
 
 export async function makeToken(userId: number, username: string): Promise<string> {
+  const header = b64url(te.encode(JSON.stringify({ alg: "HS256", typ: "JWT" })));
   const exp = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7;
-  const payload = b64url(te.encode(JSON.stringify({ userId, username, exp })));
+  const payload = b64url(te.encode(JSON.stringify({ sub: userId, username, exp })));
   const key = await hmacKey();
-  const sig = b64url(await crypto.subtle.sign("HMAC", key, te.encode(payload)));
-  return `${payload}.${sig}`;
+  const sig = await crypto.subtle.sign("HMAC", key, te.encode(`${header}.${payload}`));
+  return `${header}.${payload}.${b64url(sig)}`;
 }
 
 export async function parseToken(
   token: string
 ): Promise<{ userId: number; username: string } | null> {
   try {
-    const [payload, sig] = token.split(".");
-    if (!payload || !sig) return null;
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const [header, payload, sig] = parts;
     const key = await hmacKey();
-    const expected = b64url(await crypto.subtle.sign("HMAC", key, te.encode(payload)));
-    if (expected !== sig) return null;
-    const data = JSON.parse(new TextDecoder().decode(fromB64url(payload))) as {
-      userId: number;
+    const expected = await crypto.subtle.sign("HMAC", key, te.encode(`${header}.${payload}`));
+    const actual = fromB64url(sig!);
+    const expBytes = new Uint8Array(expected);
+    if (actual.length !== expBytes.length) return null;
+    let diff = 0;
+    for (let i = 0; i < actual.length; i++) diff |= actual[i]! ^ expBytes[i]!;
+    if (diff !== 0) return null;
+    const data = JSON.parse(new TextDecoder().decode(fromB64url(payload!))) as {
+      sub: number;
       username: string;
       exp: number;
     };
-    if (!data.exp || data.exp * 1000 < Date.now()) return null;
-    return { userId: data.userId, username: data.username };
+    if (!data.exp || data.exp < Math.floor(Date.now() / 1000)) return null;
+    // block banned users even with valid JWT
+    try {
+      const sql = getSql();
+      const rows = await sql`SELECT banned FROM users WHERE id = ${data.sub} LIMIT 1`;
+      if (rows.length && (rows[0] as any).banned) return null;
+    } catch {
+      /* if check fails, allow token */
+    }
+    return { userId: data.sub, username: data.username };
   } catch {
     return null;
   }
@@ -259,47 +270,67 @@ export async function parseToken(
 
 export async function makeRefreshToken(userId: number): Promise<string> {
   const raw = b64url(crypto.getRandomValues(new Uint8Array(32)));
-  const hash = b64url(await crypto.subtle.digest("SHA-256", te.encode(raw)));
-  const exp = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30);
+  const hash = b64url(
+    await crypto.subtle.digest("SHA-256", te.encode(raw))
+  );
   const sql = getSql();
-  await sql`
-    INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-    VALUES (${userId}, ${hash}, ${exp.toISOString()})
-  `;
+  const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  await sql`INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (${userId}, ${hash}, ${expires})`;
   return raw;
 }
 
 export async function rotateRefreshToken(
-  raw: string
-): Promise<{ userId: number; accessToken: string; refreshToken: string } | null> {
+  oldToken: string
+): Promise<{ accessToken: string; refreshToken: string; userId: number; username: string } | null> {
   try {
-    const hash = b64url(await crypto.subtle.digest("SHA-256", te.encode(raw)));
+    const hash = b64url(await crypto.subtle.digest("SHA-256", te.encode(oldToken)));
     const sql = getSql();
     const rows = await sql`
-      SELECT rt.user_id, u.username
+      SELECT rt.id, rt.user_id, rt.expires_at, rt.revoked, u.username, u.banned
       FROM refresh_tokens rt
       JOIN users u ON u.id = rt.user_id
       WHERE rt.token_hash = ${hash}
-        AND rt.revoked = false
-        AND rt.expires_at > NOW()
       LIMIT 1
     `;
     if (!rows.length) return null;
-    const row = rows[0] as { user_id: number; username: string };
-    await sql`UPDATE refresh_tokens SET revoked = true WHERE token_hash = ${hash}`;
+    const row = rows[0] as {
+      id: number;
+      user_id: number;
+      expires_at: string;
+      revoked: boolean;
+      username: string;
+      banned: boolean;
+    };
+    if (row.revoked || row.banned) return null;
+    if (new Date(row.expires_at).getTime() < Date.now()) return null;
+    await sql`UPDATE refresh_tokens SET revoked = true WHERE id = ${row.id}`;
     const accessToken = await makeToken(row.user_id, row.username);
     const refreshToken = await makeRefreshToken(row.user_id);
-    return { userId: row.user_id, accessToken, refreshToken };
+    return { accessToken, refreshToken, userId: row.user_id, username: row.username };
   } catch {
     return null;
   }
 }
 
-export async function purgeExpired() {
+export async function makeResetToken(userId: number): Promise<string> {
+  const raw = b64url(crypto.getRandomValues(new Uint8Array(24)));
+  const sql = getSql();
+  await sql`INSERT INTO app_meta (key, value) VALUES (${"reset:" + raw}, ${String(userId) + ":" + String(Date.now() + 3600000)})
+    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`;
+  return raw;
+}
+
+export async function consumeResetToken(token: string): Promise<number | null> {
   try {
     const sql = getSql();
-    await sql`DELETE FROM media_meta WHERE expires_at IS NOT NULL AND expires_at < NOW()`;
-    await sql`DELETE FROM share_links WHERE expires_at IS NOT NULL AND expires_at < NOW()`;
-    await sql`DELETE FROM refresh_tokens WHERE expires_at < NOW() OR revoked = true`;
-  } catch {}
+    const key = "reset:" + token;
+    const rows = await sql`SELECT value FROM app_meta WHERE key = ${key} LIMIT 1`;
+    if (!rows.length) return null;
+    await sql`DELETE FROM app_meta WHERE key = ${key}`;
+    const [uid, exp] = String((rows[0] as any).value).split(":");
+    if (!uid || !exp || Number(exp) < Date.now()) return null;
+    return Number(uid);
+  } catch {
+    return null;
+  }
 }

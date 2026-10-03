@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
 
     const sql = getSql();
     const rows = await sql`
-      SELECT id, username, display_name, password_hash, email, created_at
+      SELECT id, username, display_name, password_hash, email, created_at, banned
       FROM users WHERE username = ${username} LIMIT 1
     `;
 
@@ -47,7 +47,23 @@ export async function POST(request: NextRequest) {
       password_hash: string;
       email: string | null;
       created_at: string;
+      banned: boolean;
     };
+
+    if (row.banned) {
+      await logAuthEvent({
+        userId: row.id,
+        username: row.username,
+        ip,
+        userAgent: ua,
+        action: "login_banned",
+        success: false,
+      });
+      return NextResponse.json(
+        { error: "Account suspended. Contact support." },
+        { status: 403 }
+      );
+    }
 
     const ok = await verifyPassword(password, row.password_hash);
     if (!ok) {

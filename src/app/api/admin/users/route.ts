@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureSchema, checkRateLimit, getClientIp } from "@/lib/db";
+import {
+  getSql,
+  ensureSchema,
+  checkRateLimit,
+  getClientIp,
+  hashPassword,
+} from "@/lib/db";
 import { isAdmin } from "@/lib/admin-auth";
 
 export const runtime = "edge";
@@ -21,6 +27,7 @@ export async function GET(request: NextRequest) {
 
     const users = await sql`
       SELECT u.id, u.username, u.display_name, u.email, u.created_at, u.last_login_at, u.last_ip,
+        COALESCE(u.banned, false) AS banned,
         (SELECT COUNT(*)::int FROM media_meta m WHERE m.user_id = u.id) AS file_count,
         (SELECT COALESCE(SUM(m.size), 0)::bigint FROM media_meta m WHERE m.user_id = u.id) AS total_bytes
       FROM users u
@@ -31,6 +38,7 @@ export async function GET(request: NextRequest) {
     const totals = await sql`
       SELECT
         (SELECT COUNT(*)::int FROM users) AS users,
+        (SELECT COUNT(*)::int FROM users WHERE COALESCE(banned, false) = true) AS banned_users,
         (SELECT COUNT(*)::int FROM media_meta) AS files,
         (SELECT COALESCE(SUM(size), 0)::bigint FROM media_meta) AS bytes,
         (SELECT COUNT(*)::int FROM media_meta WHERE is_public = true) AS public_files,
@@ -43,6 +51,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       stats: {
         users: Number(t.users) || 0,
+        bannedUsers: Number(t.banned_users) || 0,
         files: Number(t.files) || 0,
         totalBytes: Number(t.bytes) || 0,
         publicFiles: Number(t.public_files) || 0,
@@ -57,10 +66,59 @@ export async function GET(request: NextRequest) {
         createdAt: u.created_at,
         lastLoginAt: u.last_login_at,
         lastIp: u.last_ip,
+        banned: !!u.banned,
         fileCount: Number(u.file_count) || 0,
         totalBytes: Number(u.total_bytes) || 0,
       })),
+      note: "Passwords are one-way hashed (PBKDF2). They cannot be viewed. Use Reset password to set a new one.",
     });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Failed" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    if (!isAdmin(request)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    const body = await request.json().catch(() => ({}));
+    const userId = Number(body.userId);
+    if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
+
+    await ensureSchema();
+    const sql = getSql();
+    const action = String(body.action || "");
+
+    if (action === "ban" || action === "unban") {
+      const banned = action === "ban";
+      await sql`UPDATE users SET banned = ${banned} WHERE id = ${userId}`;
+      if (banned) {
+        await sql`UPDATE refresh_tokens SET revoked = true WHERE user_id = ${userId}`;
+      }
+      return NextResponse.json({ ok: true, banned });
+    }
+
+    if (action === "reset_password") {
+      const newPassword = String(body.newPassword || "").trim();
+      if (newPassword.length < 6) {
+        return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 });
+      }
+      const hash = await hashPassword(newPassword);
+      await sql`UPDATE users SET password_hash = ${hash} WHERE id = ${userId}`;
+      await sql`UPDATE refresh_tokens SET revoked = true WHERE user_id = ${userId}`;
+      return NextResponse.json({
+        ok: true,
+        message: "Password updated. User must sign in with the new password.",
+        // Return once so admin can copy — never stored as plaintext again
+        temporaryPassword: newPassword,
+      });
+    }
+
+    return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Failed" },
