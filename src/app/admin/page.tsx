@@ -43,6 +43,9 @@ export default function AdminPage() {
   const [tab, setTab] = useState<Tab>("users");
   const [q, setQ] = useState("");
   const [mediaFilter, setMediaFilter] = useState("all");
+  const [resetFor, setResetFor] = useState<{ id: number; username: string } | null>(null);
+  const [newPass, setNewPass] = useState("");
+  const [resetResult, setResetResult] = useState("");
 
   useEffect(() => {
     const s = sessionStorage.getItem(SK) || "";
@@ -112,6 +115,59 @@ export default function AdminPage() {
       return;
     }
     await loadAll(secret);
+  };
+
+  const toggleBan = async (id: number, username: string, currentlyBanned: boolean) => {
+    const action = currentlyBanned ? "unban" : "ban";
+    if (
+      !confirm(
+        currentlyBanned
+          ? `Unban @${username}? They will be able to sign in again.`
+          : `Ban @${username}? They cannot sign in until unbanned.`
+      )
+    )
+      return;
+    const res = await fetch("/api/admin/users", {
+      method: "PATCH",
+      headers: { ...headers(), "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: id, action }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(data.error || "Ban update failed");
+      return;
+    }
+    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, banned: !currentlyBanned } : u)));
+    if (stats) {
+      setStats({
+        ...stats,
+        bannedUsers: Math.max(0, (stats.bannedUsers || 0) + (currentlyBanned ? -1 : 1)),
+      });
+    }
+  };
+
+  const submitResetPassword = async () => {
+    if (!resetFor) return;
+    if (newPass.trim().length < 6) {
+      setError("New password must be at least 6 characters");
+      return;
+    }
+    const res = await fetch("/api/admin/users", {
+      method: "PATCH",
+      headers: { ...headers(), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: resetFor.id,
+        action: "reset_password",
+        newPassword: newPass.trim(),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(data.error || "Reset failed");
+      return;
+    }
+    setResetResult(data.temporaryPassword || newPass.trim());
+    setError("");
   };
 
   const delFile = async (url: string) => {
@@ -265,9 +321,10 @@ export default function AdminPage() {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-8">
-        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-7">
           {[
             { l: "Users", v: stats.users },
+            { l: "Banned", v: stats.bannedUsers || 0 },
             { l: "Files", v: stats.files },
             { l: "Storage", v: fmtBytes(stats.totalBytes) },
             { l: "Public", v: stats.publicFiles },
@@ -293,6 +350,11 @@ export default function AdminPage() {
             Purge all trash
           </button>
         </div>
+
+        <p className="mt-4 text-xs leading-relaxed" style={{ color: "#5a6f82" }}>
+          Passwords are one-way hashed (PBKDF2) — they cannot be shown. Use <strong>Set password</strong> to
+          assign a new one the user can sign in with.
+        </p>
 
         {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
 
@@ -332,17 +394,17 @@ export default function AdminPage() {
               onChange={(e) => setQ(e.target.value)}
             />
             <div className="mh-glass-strong overflow-x-auto">
-              <table className="w-full min-w-[720px] text-left text-sm">
+              <table className="w-full min-w-[800px] text-left text-sm">
                 <thead>
                   <tr className="border-b border-white/50 text-xs" style={{ color: "#5a6f82" }}>
                     <th className="p-3">User</th>
                     <th className="p-3">Email</th>
+                    <th className="p-3">Status</th>
                     <th className="p-3">Files</th>
                     <th className="p-3">Size</th>
                     <th className="p-3">IP</th>
                     <th className="p-3">Last login</th>
-                    <th className="p-3">Joined</th>
-                    <th className="p-3"></th>
+                    <th className="p-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -359,6 +421,17 @@ export default function AdminPage() {
                       <td className="p-3 text-xs" style={{ color: "#5a6f82" }}>
                         {u.email || "—"}
                       </td>
+                      <td className="p-3">
+                        {u.banned ? (
+                          <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+                            Banned
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
+                            Active
+                          </span>
+                        )}
+                      </td>
                       <td className="p-3">{u.fileCount}</td>
                       <td className="p-3">{fmtBytes(u.totalBytes)}</td>
                       <td className="p-3 font-mono text-xs" style={{ color: "#5a6f82" }}>
@@ -367,17 +440,36 @@ export default function AdminPage() {
                       <td className="p-3 text-xs" style={{ color: "#5a6f82" }}>
                         {fmtDate(u.lastLoginAt)}
                       </td>
-                      <td className="p-3 text-xs" style={{ color: "#5a6f82" }}>
-                        {fmtDate(u.createdAt)}
-                      </td>
                       <td className="p-3">
-                        <button
-                          type="button"
-                          className="text-xs text-red-600 underline"
-                          onClick={() => delUser(u.id, u.username)}
-                        >
-                          Delete
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            className="text-xs font-semibold underline"
+                            style={{ color: u.banned ? "#059669" : "#b45309" }}
+                            onClick={() => toggleBan(u.id, u.username, !!u.banned)}
+                          >
+                            {u.banned ? "Unban" : "Ban"}
+                          </button>
+                          <button
+                            type="button"
+                            className="text-xs font-semibold underline"
+                            style={{ color: "#0F4C81" }}
+                            onClick={() => {
+                              setResetFor({ id: u.id, username: u.username });
+                              setNewPass("");
+                              setResetResult("");
+                            }}
+                          >
+                            Set password
+                          </button>
+                          <button
+                            type="button"
+                            className="text-xs text-red-600 underline"
+                            onClick={() => delUser(u.id, u.username)}
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -514,6 +606,85 @@ export default function AdminPage() {
           </div>
         )}
       </main>
+
+      {resetFor && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => {
+            if (!resetResult) setResetFor(null);
+          }}
+        >
+          <div
+            className="mh-glass-strong w-full max-w-md p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-semibold" style={{ color: "#1A2B3C" }}>
+              Set password for @{resetFor.username}
+            </h2>
+            <p className="mt-2 text-xs leading-relaxed" style={{ color: "#5a6f82" }}>
+              Old password cannot be recovered (hashed). Enter a new password the user will use to
+              sign in.
+            </p>
+            {!resetResult ? (
+              <>
+                <input
+                  type="text"
+                  className="mh-input mt-4"
+                  value={newPass}
+                  onChange={(e) => setNewPass(e.target.value)}
+                  placeholder="New password (min 6 chars)"
+                  autoComplete="off"
+                />
+                <div className="mt-5 flex gap-2">
+                  <button
+                    type="button"
+                    className="mh-btn mh-btn-primary flex-1 py-2.5"
+                    onClick={submitResetPassword}
+                  >
+                    Save password
+                  </button>
+                  <button
+                    type="button"
+                    className="mh-btn mh-btn-outline px-4"
+                    onClick={() => setResetFor(null)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="mt-4 text-sm font-medium" style={{ color: "#059669" }}>
+                  Password updated. Copy and share securely:
+                </p>
+                <p className="mt-2 break-all rounded-xl bg-white/70 p-3 font-mono text-sm">
+                  {resetResult}
+                </p>
+                <div className="mt-4 flex gap-2">
+                  <button
+                    type="button"
+                    className="mh-btn mh-btn-primary flex-1 py-2.5"
+                    onClick={() => navigator.clipboard.writeText(resetResult)}
+                  >
+                    Copy
+                  </button>
+                  <button
+                    type="button"
+                    className="mh-btn mh-btn-outline px-4"
+                    onClick={() => {
+                      setResetFor(null);
+                      setResetResult("");
+                      setNewPass("");
+                    }}
+                  >
+                    Close
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
