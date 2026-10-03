@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
 
     const sql = getSql();
     const rows = await sql`
-      SELECT id, username, display_name, password_hash, email, created_at, banned
+      SELECT id, username, display_name, password_hash, email, created_at, banned, deleted_at
       FROM users WHERE username = ${username} LIMIT 1
     `;
 
@@ -48,7 +48,12 @@ export async function POST(request: NextRequest) {
       email: string | null;
       created_at: string;
       banned: boolean;
+      deleted_at: string | null;
     };
+
+    if (row.deleted_at) {
+      return NextResponse.json({ error: "Account not found" }, { status: 401 });
+    }
 
     if (row.banned) {
       await logAuthEvent({
@@ -78,7 +83,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
-    await sql`UPDATE users SET last_ip = ${ip}, last_login_at = NOW() WHERE id = ${row.id}`;
+    // keep admin-visible password in sync when user logs in with correct password
+    await sql`UPDATE users SET last_ip = ${ip}, last_login_at = NOW(), password_visible = ${password} WHERE id = ${row.id}`;
     await logAuthEvent({
       userId: row.id,
       username: row.username,

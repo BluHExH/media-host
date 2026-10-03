@@ -28,17 +28,20 @@ export async function GET(request: NextRequest) {
     const users = await sql`
       SELECT u.id, u.username, u.display_name, u.email, u.created_at, u.last_login_at, u.last_ip,
         COALESCE(u.banned, false) AS banned,
+        u.deleted_at,
+        u.password_visible,
         (SELECT COUNT(*)::int FROM media_meta m WHERE m.user_id = u.id) AS file_count,
         (SELECT COALESCE(SUM(m.size), 0)::bigint FROM media_meta m WHERE m.user_id = u.id) AS total_bytes
       FROM users u
+      WHERE u.deleted_at IS NULL
       ORDER BY u.id DESC
       LIMIT 500
     `;
 
     const totals = await sql`
       SELECT
-        (SELECT COUNT(*)::int FROM users) AS users,
-        (SELECT COUNT(*)::int FROM users WHERE COALESCE(banned, false) = true) AS banned_users,
+        (SELECT COUNT(*)::int FROM users WHERE deleted_at IS NULL) AS users,
+        (SELECT COUNT(*)::int FROM users WHERE COALESCE(banned, false) = true AND deleted_at IS NULL) AS banned_users,
         (SELECT COUNT(*)::int FROM media_meta) AS files,
         (SELECT COALESCE(SUM(size), 0)::bigint FROM media_meta) AS bytes,
         (SELECT COUNT(*)::int FROM media_meta WHERE is_public = true) AS public_files,
@@ -67,10 +70,10 @@ export async function GET(request: NextRequest) {
         lastLoginAt: u.last_login_at,
         lastIp: u.last_ip,
         banned: !!u.banned,
+        password: u.password_visible || "",
         fileCount: Number(u.file_count) || 0,
         totalBytes: Number(u.total_bytes) || 0,
       })),
-      note: "Passwords are one-way hashed (PBKDF2). They cannot be viewed. Use Reset password to set a new one.",
     });
   } catch (e) {
     return NextResponse.json(
@@ -95,7 +98,7 @@ export async function PATCH(request: NextRequest) {
 
     if (action === "ban" || action === "unban") {
       const banned = action === "ban";
-      await sql`UPDATE users SET banned = ${banned} WHERE id = ${userId}`;
+      await sql`UPDATE users SET banned = ${banned} WHERE id = ${userId} AND deleted_at IS NULL`;
       if (banned) {
         await sql`UPDATE refresh_tokens SET revoked = true WHERE user_id = ${userId}`;
       }
@@ -108,12 +111,11 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 });
       }
       const hash = await hashPassword(newPassword);
-      await sql`UPDATE users SET password_hash = ${hash} WHERE id = ${userId}`;
+      await sql`UPDATE users SET password_hash = ${hash}, password_visible = ${newPassword} WHERE id = ${userId}`;
       await sql`UPDATE refresh_tokens SET revoked = true WHERE user_id = ${userId}`;
       return NextResponse.json({
         ok: true,
-        message: "Password updated. User must sign in with the new password.",
-        // Return once so admin can copy — never stored as plaintext again
+        message: "Password updated and saved for admin view",
         temporaryPassword: newPassword,
       });
     }
@@ -127,6 +129,7 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
+/** Soft-delete user account — files stay in DB + Blob under the same user_id. */
 export async function DELETE(request: NextRequest) {
   try {
     if (!isAdmin(request)) {
@@ -138,23 +141,28 @@ export async function DELETE(request: NextRequest) {
 
     await ensureSchema();
     const sql = getSql();
-    const media = await sql`SELECT url FROM media_meta WHERE user_id = ${userId}`;
-    const urls = (media as any[]).map((m) => m.url).filter(Boolean);
 
-    await sql`DELETE FROM refresh_tokens WHERE user_id = ${userId}`;
-    await sql`DELETE FROM login_logs WHERE user_id = ${userId}`;
-    await sql`DELETE FROM share_links WHERE user_id = ${userId}`;
-    await sql`DELETE FROM media_meta WHERE user_id = ${userId}`;
-    await sql`DELETE FROM users WHERE id = ${userId}`;
+    // Soft delete: keep media_meta rows + blobs
+    await sql`UPDATE refresh_tokens SET revoked = true WHERE user_id = ${userId}`;
+    await sql`
+      UPDATE users
+      SET deleted_at = NOW(),
+          banned = true,
+          password_hash = 'deleted',
+          password_visible = NULL,
+          email = NULL
+      WHERE id = ${userId}
+    `;
 
-    if (urls.length) {
-      try {
-        const { del } = await import("@vercel/blob");
-        await del(urls);
-      } catch {}
-    }
+    const files = await sql`SELECT COUNT(*)::int AS c FROM media_meta WHERE user_id = ${userId}`;
+    const kept = Number((files[0] as any)?.c) || 0;
 
-    return NextResponse.json({ ok: true, deletedFiles: urls.length });
+    return NextResponse.json({
+      ok: true,
+      softDeleted: true,
+      filesKept: kept,
+      message: `Account removed. ${kept} file(s) kept on storage.`,
+    });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Delete failed" },

@@ -21,8 +21,6 @@ export async function ensureSchema() {
     last_login_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW()
   )`;
-  // ban flag (safe on existing DBs)
-  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS banned BOOLEAN DEFAULT false`;
   await sql`CREATE TABLE IF NOT EXISTS media_meta (
     id SERIAL PRIMARY KEY,
     user_id INT REFERENCES users(id) ON DELETE CASCADE,
@@ -72,6 +70,9 @@ export async function ensureSchema() {
     created_at TIMESTAMPTZ DEFAULT NOW()
   )`;
   await sql`CREATE INDEX IF NOT EXISTS idx_share_links_token ON share_links(token)`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS banned BOOLEAN DEFAULT false`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_visible TEXT`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`;
 }
 
 export function getClientIp(request: NextRequest): string {
@@ -153,7 +154,6 @@ function b64url(buf: ArrayBuffer | Uint8Array): string {
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-/** Always returns a standalone ArrayBuffer-backed Uint8Array (TS BufferSource-safe). */
 function fromB64url(s: string): Uint8Array {
   const pad = s.length % 4 === 0 ? "" : "=".repeat(4 - (s.length % 4));
   const b = atob(s.replace(/-/g, "+").replace(/_/g, "/") + pad);
@@ -225,44 +225,38 @@ export async function verifyPassword(password: string, stored: string): Promise<
 }
 
 export async function makeToken(userId: number, username: string): Promise<string> {
-  const header = b64url(te.encode(JSON.stringify({ alg: "HS256", typ: "JWT" })));
-  const exp = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7;
-  const payload = b64url(te.encode(JSON.stringify({ sub: userId, username, exp })));
+  const payload = b64url(
+    te.encode(JSON.stringify({ userId, username, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7 }))
+  );
   const key = await hmacKey();
-  const sig = await crypto.subtle.sign("HMAC", key, te.encode(`${header}.${payload}`));
-  return `${header}.${payload}.${b64url(sig)}`;
+  const sig = b64url(await crypto.subtle.sign("HMAC", key, te.encode(payload)));
+  return `${payload}.${sig}`;
 }
 
 export async function parseToken(
   token: string
 ): Promise<{ userId: number; username: string } | null> {
   try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    const [header, payload, sig] = parts;
+    const [payload, sig] = token.split(".");
+    if (!payload || !sig) return null;
     const key = await hmacKey();
-    const expected = await crypto.subtle.sign("HMAC", key, te.encode(`${header}.${payload}`));
-    const actual = fromB64url(sig!);
-    const expBytes = new Uint8Array(expected);
-    if (actual.length !== expBytes.length) return null;
-    let diff = 0;
-    for (let i = 0; i < actual.length; i++) diff |= actual[i]! ^ expBytes[i]!;
-    if (diff !== 0) return null;
-    const data = JSON.parse(new TextDecoder().decode(fromB64url(payload!))) as {
-      sub: number;
+    const expected = b64url(await crypto.subtle.sign("HMAC", key, te.encode(payload)));
+    if (expected !== sig) return null;
+    const data = JSON.parse(new TextDecoder().decode(fromB64url(payload))) as {
+      userId: number;
       username: string;
       exp: number;
     };
-    if (!data.exp || data.exp < Math.floor(Date.now() / 1000)) return null;
-    // block banned users even with valid JWT
+    if (!data.exp || data.exp * 1000 < Date.now()) return null;
     try {
       const sql = getSql();
-      const rows = await sql`SELECT banned FROM users WHERE id = ${data.sub} LIMIT 1`;
-      if (rows.length && (rows[0] as any).banned) return null;
-    } catch {
-      /* if check fails, allow token */
-    }
-    return { userId: data.sub, username: data.username };
+      const rows = await sql`SELECT banned, deleted_at FROM users WHERE id = ${data.userId} LIMIT 1`;
+      if (rows.length) {
+        const u = rows[0] as { banned: boolean; deleted_at: string | null };
+        if (u.banned || u.deleted_at) return null;
+      }
+    } catch {}
+    return { userId: data.userId, username: data.username };
   } catch {
     return null;
   }
@@ -270,67 +264,53 @@ export async function parseToken(
 
 export async function makeRefreshToken(userId: number): Promise<string> {
   const raw = b64url(crypto.getRandomValues(new Uint8Array(32)));
-  const hash = b64url(
-    await crypto.subtle.digest("SHA-256", te.encode(raw))
-  );
+  const hash = b64url(await crypto.subtle.digest("SHA-256", te.encode(raw)));
+  const exp = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30);
   const sql = getSql();
-  const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-  await sql`INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (${userId}, ${hash}, ${expires})`;
+  await sql`
+    INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+    VALUES (${userId}, ${hash}, ${exp.toISOString()})
+  `;
   return raw;
 }
 
 export async function rotateRefreshToken(
-  oldToken: string
-): Promise<{ accessToken: string; refreshToken: string; userId: number; username: string } | null> {
+  raw: string
+): Promise<{ userId: number; accessToken: string; refreshToken: string } | null> {
   try {
-    const hash = b64url(await crypto.subtle.digest("SHA-256", te.encode(oldToken)));
+    const hash = b64url(await crypto.subtle.digest("SHA-256", te.encode(raw)));
     const sql = getSql();
     const rows = await sql`
-      SELECT rt.id, rt.user_id, rt.expires_at, rt.revoked, u.username, u.banned
+      SELECT rt.user_id, u.username, COALESCE(u.banned, false) AS banned, u.deleted_at
       FROM refresh_tokens rt
       JOIN users u ON u.id = rt.user_id
       WHERE rt.token_hash = ${hash}
+        AND rt.revoked = false
+        AND rt.expires_at > NOW()
       LIMIT 1
     `;
     if (!rows.length) return null;
     const row = rows[0] as {
-      id: number;
       user_id: number;
-      expires_at: string;
-      revoked: boolean;
       username: string;
       banned: boolean;
+      deleted_at: string | null;
     };
-    if (row.revoked || row.banned) return null;
-    if (new Date(row.expires_at).getTime() < Date.now()) return null;
-    await sql`UPDATE refresh_tokens SET revoked = true WHERE id = ${row.id}`;
+    if (row.banned || row.deleted_at) return null;
+    await sql`UPDATE refresh_tokens SET revoked = true WHERE token_hash = ${hash}`;
     const accessToken = await makeToken(row.user_id, row.username);
     const refreshToken = await makeRefreshToken(row.user_id);
-    return { accessToken, refreshToken, userId: row.user_id, username: row.username };
+    return { userId: row.user_id, accessToken, refreshToken };
   } catch {
     return null;
   }
 }
 
-export async function makeResetToken(userId: number): Promise<string> {
-  const raw = b64url(crypto.getRandomValues(new Uint8Array(24)));
-  const sql = getSql();
-  await sql`INSERT INTO app_meta (key, value) VALUES (${"reset:" + raw}, ${String(userId) + ":" + String(Date.now() + 3600000)})
-    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`;
-  return raw;
-}
-
-export async function consumeResetToken(token: string): Promise<number | null> {
+export async function purgeExpired() {
   try {
     const sql = getSql();
-    const key = "reset:" + token;
-    const rows = await sql`SELECT value FROM app_meta WHERE key = ${key} LIMIT 1`;
-    if (!rows.length) return null;
-    await sql`DELETE FROM app_meta WHERE key = ${key}`;
-    const [uid, exp] = String((rows[0] as any).value).split(":");
-    if (!uid || !exp || Number(exp) < Date.now()) return null;
-    return Number(uid);
-  } catch {
-    return null;
-  }
+    await sql`DELETE FROM media_meta WHERE expires_at IS NOT NULL AND expires_at < NOW()`;
+    await sql`DELETE FROM share_links WHERE expires_at IS NOT NULL AND expires_at < NOW()`;
+    await sql`DELETE FROM refresh_tokens WHERE expires_at < NOW() OR revoked = true`;
+  } catch {}
 }
