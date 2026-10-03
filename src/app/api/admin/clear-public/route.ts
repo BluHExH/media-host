@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureSchema } from "@/lib/db";
+import { isAdmin } from "@/lib/admin-auth";
 
 export const runtime = "edge";
-
-function isAdmin(request: NextRequest): boolean {
-  const secret = request.headers.get("x-admin-secret") || "";
-  const expected = process.env.ADMIN_SECRET || "";
-  return !!expected && secret === expected;
-}
 
 /** Unpublish all public gallery items (does not delete blobs). */
 export async function POST(request: NextRequest) {
@@ -23,6 +18,9 @@ export async function POST(request: NextRequest) {
     `;
     return NextResponse.json({ ok: true, cleared: (result as any[]).length });
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Failed" }, { status: 500 });
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Failed" },
+      { status: 500 }
+    );
   }
 }

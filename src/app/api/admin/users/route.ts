@@ -1,18 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureSchema, checkRateLimit, getClientIp } from "@/lib/db";
+import { isAdmin } from "@/lib/admin-auth";
 
 export const runtime = "edge";
-
-function isAdmin(request: NextRequest): boolean {
-  const secret = request.headers.get("x-admin-secret") || "";
-  const expected = process.env.ADMIN_SECRET || "";
-  return !!expected && secret === expected;
-}
 
 export async function GET(request: NextRequest) {
   try {
     if (!isAdmin(request)) {
-      return NextResponse.json({ error: "Forbidden — set ADMIN_SECRET and send x-admin-secret" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Forbidden — set ADMIN_SECRET on Vercel and unlock with that value" },
+        { status: 403 }
+      );
     }
     const ip = getClientIp(request);
     const rl = await checkRateLimit(`admin:${ip}`, 60, 60);
@@ -35,10 +33,12 @@ export async function GET(request: NextRequest) {
         (SELECT COUNT(*)::int FROM users) AS users,
         (SELECT COUNT(*)::int FROM media_meta) AS files,
         (SELECT COALESCE(SUM(size), 0)::bigint FROM media_meta) AS bytes,
-        (SELECT COUNT(*)::int FROM media_meta WHERE is_public = true) AS public_files
+        (SELECT COUNT(*)::int FROM media_meta WHERE is_public = true) AS public_files,
+        (SELECT COUNT(*)::int FROM media_meta WHERE album = 'trash') AS trash_files,
+        (SELECT COUNT(*)::int FROM login_logs WHERE created_at > NOW() - INTERVAL '24 hours') AS logins_24h
     `;
 
-    const t = (totals[0] || {}) as any;
+    const t = (totals[0] || {}) as Record<string, unknown>;
 
     return NextResponse.json({
       stats: {
@@ -46,6 +46,8 @@ export async function GET(request: NextRequest) {
         files: Number(t.files) || 0,
         totalBytes: Number(t.bytes) || 0,
         publicFiles: Number(t.public_files) || 0,
+        trashFiles: Number(t.trash_files) || 0,
+        logins24h: Number(t.logins_24h) || 0,
       },
       users: (users as any[]).map((u) => ({
         id: u.id,
@@ -60,7 +62,10 @@ export async function GET(request: NextRequest) {
       })),
     });
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Failed" }, { status: 500 });
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Failed" },
+      { status: 500 }
+    );
   }
 }
 
@@ -80,6 +85,7 @@ export async function DELETE(request: NextRequest) {
 
     await sql`DELETE FROM refresh_tokens WHERE user_id = ${userId}`;
     await sql`DELETE FROM login_logs WHERE user_id = ${userId}`;
+    await sql`DELETE FROM share_links WHERE user_id = ${userId}`;
     await sql`DELETE FROM media_meta WHERE user_id = ${userId}`;
     await sql`DELETE FROM users WHERE id = ${userId}`;
 
@@ -92,6 +98,9 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ ok: true, deletedFiles: urls.length });
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Delete failed" }, { status: 500 });
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Delete failed" },
+      { status: 500 }
+    );
   }
 }
