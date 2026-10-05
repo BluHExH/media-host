@@ -21,8 +21,6 @@ function makeNonce(): string {
 }
 
 function buildCsp(nonce: string): string {
-  // No 'unsafe-eval' / 'unsafe-inline' on scripts — nonce + strict-dynamic.
-  // wasm-unsafe-eval: needed for browser WASM tools (remove-bg / upscale CDN).
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://cdn.jsdelivr.net 'wasm-unsafe-eval'`,
@@ -70,9 +68,11 @@ function applySecurityHeaders(res: NextResponse, pathname: string, nonce: string
   res.headers.set("X-Frame-Options", "DENY");
   res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   res.headers.set("X-XSS-Protection", "0");
+  res.headers.set("X-Permitted-Cross-Domain-Policies", "none");
   res.headers.set("Permissions-Policy", PERMISSIONS_POLICY);
   res.headers.set("Cross-Origin-Opener-Policy", "same-origin");
   res.headers.set("Cross-Origin-Resource-Policy", "same-site");
+  res.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
   if (!pathname.startsWith("/api/render")) {
     res.headers.set("Content-Security-Policy", buildCsp(nonce));
   }
@@ -82,7 +82,6 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const method = request.method.toUpperCase();
 
-  // Defense-in-depth vs request-smuggling style dual Content-Length + chunked
   const te = (request.headers.get("transfer-encoding") || "").toLowerCase();
   if (te.includes("chunked") && request.headers.has("content-length")) {
     if (method === "DELETE" || method === "OPTIONS" || method === "PUT" || method === "POST") {
@@ -93,18 +92,18 @@ export function middleware(request: NextRequest) {
   const slug = adminSlug();
   const nonce = makeNonce();
 
-  // Public /admin → fake 404
   if (pathname === "/admin" || pathname.startsWith("/admin/")) {
-    return new NextResponse("This page doesn’t exist.", {
+    const res = new NextResponse("This page doesn’t exist.", {
       status: 404,
       headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
     });
+    applySecurityHeaders(res, pathname, nonce);
+    return res;
   }
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
 
-  // Secret path → rewrite to internal /admin
   if (pathname === `/${slug}` || pathname.startsWith(`/${slug}/`)) {
     const url = request.nextUrl.clone();
     const rest = pathname.slice(slug.length + 1);
